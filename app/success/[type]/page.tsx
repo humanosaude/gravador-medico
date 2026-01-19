@@ -4,7 +4,9 @@ import Link from "next/link"
 import Image from "next/image"
 import ClientEffect from "./ClientEffect"
 
-export default function SuccessPage({ params }: { params: { type: string } }) {
+export default async function SuccessPage({ params }: { params: Promise<{ type: string }> }) {
+  const { type } = await params
+  
   const messages = {
     payment: {
       title: "Pagamento Aprovado!",
@@ -20,7 +22,7 @@ export default function SuccessPage({ params }: { params: { type: string } }) {
     }
   }
 
-  const content = messages[params.type as keyof typeof messages] || messages.default
+  const content = messages[type as keyof typeof messages] || messages.default
 
   return (
     <>
