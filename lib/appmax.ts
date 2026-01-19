@@ -363,17 +363,24 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
     
     // A API Appmax retorna um link "pix_payment_link" para a página de pagamento
     // Exemplo: http://admin.appmax.com.br/show-pix/105547443
-    const redirectUrl = paymentResult.pix_payment_link || 
-                        paymentResult.data?.pix_payment_link ||
-                        paymentResult.redirect_url || 
-                        paymentResult.data?.redirect_url ||
-                        paymentResult.url ||
-                        paymentResult.data?.url
+    let redirectUrl = paymentResult.pix_payment_link || 
+                      paymentResult.data?.pix_payment_link ||
+                      paymentResult.redirect_url || 
+                      paymentResult.data?.redirect_url ||
+                      paymentResult.url ||
+                      paymentResult.data?.url
+    
+    // Se a API não retornou a URL, construímos manualmente
+    // A Appmax sempre usa o padrão: admin.appmax.com.br/show-pix/{order_id}
+    if (!redirectUrl && orderId) {
+      redirectUrl = `https://admin.appmax.com.br/show-pix/${orderId}`
+      console.log('🔧 URL construída manualmente:', redirectUrl)
+    }
     
     console.log('🔗 URL de redirecionamento:', redirectUrl)
     
     if (!redirectUrl) {
-      console.error('⚠️ NENHUMA URL retornada pela API!')
+      console.error('⚠️ NENHUMA URL disponível!')
       console.error('📦 Resposta completa:', JSON.stringify(paymentResult, null, 2))
     }
     
