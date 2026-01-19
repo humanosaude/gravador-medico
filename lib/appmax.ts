@@ -125,7 +125,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
       customerResult = JSON.parse(customerResponseText)
     } catch (e) {
       console.error('❌ Resposta não é JSON:', customerResponseText.substring(0, 500))
-      throw new Error('Resposta inválida da API Appmax ao criar cliente')
+      throw new Error(`Resposta inválida da API: ${customerResponseText.substring(0, 300)}`)
     }
     
     // Log completo da resposta para debug
@@ -142,7 +142,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
 
     if (!customerId) {
       console.error('❌ customer_id não retornado. Resposta:', JSON.stringify(customerResult))
-      throw new Error(`API Appmax não retornou customer_id. Resposta: ${JSON.stringify(customerResult).substring(0, 200)}`)
+      throw new Error(`customer_id não encontrado. API retornou: ${JSON.stringify(customerResult).substring(0, 300)}`)
     }
 
     console.log('✅ Cliente criado:', customerId)
