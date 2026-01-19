@@ -30,6 +30,14 @@ const PRICES = {
   '32989520': 39.90,  // Análise Inteligente
 }
 
+// Nomes dos produtos (conforme cadastrados na Appmax)
+const PRODUCT_NAMES = {
+  '32991339': 'Gravador Médico - Acesso Vitalício',
+  '32989468': 'Conteúdo Infinito para Instagram',
+  '32989503': 'Implementação Assistida',
+  '32989520': 'Análise Inteligente de Consultas',
+}
+
 interface UTMParams {
   utm_source?: string
   utm_medium?: string
@@ -176,7 +184,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
     const products = [
       {
         sku: APPMAX_PRODUCT_ID,
-        name: 'Gravador Médico - Acesso Vitalício',
+        name: PRODUCT_NAMES[APPMAX_PRODUCT_ID as keyof typeof PRODUCT_NAMES] || 'Gravador Médico - Acesso Vitalício',
         qty: 1,
         digital_product: 1, // INFOPRODUTO
       },
@@ -197,7 +205,7 @@ export async function createAppmaxOrder(data: AppmaxOrderRequest): Promise<Appma
         
         products.push({
           sku: bump.product_id,
-          name: `Order Bump ${bump.product_id}`,
+          name: PRODUCT_NAMES[bump.product_id as keyof typeof PRODUCT_NAMES] || `Order Bump ${bump.product_id}`,
           qty: bump.quantity || 1,
           digital_product: 1, // INFOPRODUTO
         })
