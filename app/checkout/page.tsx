@@ -82,6 +82,7 @@ export default function CheckoutPage() {
   // Order Bumps
   const orderBumps = [
     {
+      id: "32989468", // ID do produto na Appmax
       title: "🎯 Pacote VIP: Consultoria Personalizada",
       description: "30 minutos de consultoria individual para otimizar seu método + Setup completo feito por especialista",
       originalPrice: 497,
@@ -91,6 +92,7 @@ export default function CheckoutPage() {
       badge: "LIMITADO",
     },
     {
+      id: "32989503", // ID do produto na Appmax
       title: "📚 Biblioteca Premium: 50+ Modelos Prontos",
       description: "Modelos de prontuários para 20+ especialidades + Scripts de anamnese otimizados + Atualizações vitalícias",
       originalPrice: 297,
@@ -100,6 +102,7 @@ export default function CheckoutPage() {
       badge: "EXCLUSIVO",
     },
     {
+      id: "32989520", // ID do produto na Appmax
       title: "⚡ Treinamento Avançado + Suporte Prioritário",
       description: "3 meses de suporte prioritário via WhatsApp + Acesso ao grupo VIP de médicos + Treinamento ao vivo semanal",
       originalPrice: 397,
@@ -210,6 +213,12 @@ export default function CheckoutPage() {
     setLoading(true)
     
     try {
+      // Mapeia os índices dos order bumps selecionados para os IDs dos produtos
+      const selectedBumpProducts = selectedOrderBumps.map(index => ({
+        product_id: orderBumps[index].id,
+        quantity: 1
+      }))
+      
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,7 +228,7 @@ export default function CheckoutPage() {
           phone: formData.phone,
           cpf: formData.cpf.replace(/\D/g, ''),
           paymentMethod: paymentMethod,
-          orderBumps: selectedOrderBumps,
+          orderBumps: selectedBumpProducts, // Envia os IDs dos produtos
         })
       })
 
@@ -240,15 +249,8 @@ export default function CheckoutPage() {
             return
           }
           
-          // Fallback: se retornou o QR Code diretamente (menos comum)
-          if (result.pix_qr_code) {
-            sessionStorage.setItem('pix_qr_code', result.pix_qr_code)
-            sessionStorage.setItem('pix_order_id', result.order_id)
-            window.location.href = `/success/pix?order_id=${result.order_id}`
-            return
-          }
-          
           // Se não retornou nem URL nem QR Code, erro
+          console.error('❌ Resposta da API:', result)
           throw new Error('API não retornou URL de pagamento PIX')
         } else if (paymentMethod === 'credit') {
           // Mostra resultado do cartão
