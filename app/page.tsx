@@ -2714,9 +2714,9 @@ export default function LandingPage() {
             </motion.div>
 
             <div className="flex items-center justify-center gap-8 text-sm text-white font-semibold flex-wrap">
-              <a href="#" className="hover:text-brand-100 transition-colors">Termos de Uso</a>
-              <a href="#" className="hover:text-brand-100 transition-colors">Política de Privacidade</a>
-              <a href="#" className="hover:text-brand-100 transition-colors">Contato</a>
+              <Link href="/termos-de-uso" className="hover:text-brand-100 transition-colors">Termos de Uso</Link>
+              <Link href="/politica-privacidade" className="hover:text-brand-100 transition-colors">Política de Privacidade</Link>
+              <Link href="/contato" className="hover:text-brand-100 transition-colors">Contato</Link>
             </div>
 
             <p className="text-white font-semibold text-sm">
