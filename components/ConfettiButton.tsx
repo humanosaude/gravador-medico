@@ -22,7 +22,7 @@ export default function ConfettiButton({ promptText }: ConfettiButtonProps) {
         id: i,
         x: Math.random() * 200 - 100,
         y: Math.random() * -150 - 50,
-        color: ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b"][Math.floor(Math.random() * 4)],
+        color: ["#3b82f6", "#8b5cf6", "#3D8B7E", "#f59e0b"][Math.floor(Math.random() * 4)],
       }))
       setConfetti(newConfetti)
 

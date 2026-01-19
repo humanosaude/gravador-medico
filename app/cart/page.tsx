@@ -351,7 +351,7 @@ export default function CartPage() {
 
                   {/* Savings */}
                   {savings > 0 && (
-                    <div className="flex justify-between text-green-600 font-bold pt-3 border-t border-gray-200">
+                    <div className="flex justify-between text-brand-600 font-bold pt-3 border-t border-gray-200">
                       <span>Você está economizando</span>
                       <span>R$ {savings}</span>
                     </div>

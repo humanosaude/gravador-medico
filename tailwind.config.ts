@@ -9,19 +9,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Paleta principal
+        // Paleta principal - Teal Medical
         brand: {
-          DEFAULT: "#00C896", // Verde Médico
-          50: "#E6F9F4",    // Verde Claro (fundos)
-          100: "#CCFFF1",
-          200: "#99FFE3",
-          300: "#66FFD5",
-          400: "#33FFC7",
-          500: "#00C896",
-          600: "#00A87D",   // Para gradiente
-          700: "#008864",
-          800: "#00684B",
-          900: "#004832",
+          DEFAULT: "#3D8B7E", // Teal Medical Green
+          50: "#E8F4F2",    // Verde Teal muito claro (fundos)
+          100: "#D1E9E5",   // Verde Teal claro
+          200: "#A3D3CB",   // Verde Teal claro médio
+          300: "#8BC4BA",   // Soft Teal Gradient
+          400: "#64A89A",   // Verde Teal médio
+          500: "#3D8B7E",   // Teal Medical Green (principal)
+          600: "#327362",   // Verde Teal escuro
+          700: "#275A4C",   // Verde Teal mais escuro
+          800: "#1C4236",   // Verde Teal muito escuro
+          900: "#112920",   // Verde Teal quase preto
         },
         blue: {
           DEFAULT: "#0066FF", // Azul Confiança
@@ -48,11 +48,11 @@ const config: Config = {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        soft: "0 2px 8px rgba(0, 200, 150, 0.08)",
-        md: "0 4px 16px rgba(0, 200, 150, 0.12)",
-        strong: "0 8px 24px rgba(0, 200, 150, 0.16)",
-        cta: "0 4px 16px rgba(0, 200, 150, 0.24)",
-        ctaHover: "0 8px 24px rgba(0, 200, 150, 0.32)",
+        soft: "0 2px 8px rgba(61, 139, 126, 0.08)",
+        md: "0 4px 16px rgba(61, 139, 126, 0.12)",
+        strong: "0 8px 24px rgba(61, 139, 126, 0.16)",
+        cta: "0 4px 16px rgba(61, 139, 126, 0.24)",
+        ctaHover: "0 8px 24px rgba(61, 139, 126, 0.32)",
       },
     },
   },

@@ -52,7 +52,7 @@ import {
   MessageCircle,
   Users2,
   ShoppingCart,
-  LogIn,
+  User,
   Phone,
   FolderOpen,
   ChevronDown,
@@ -240,7 +240,7 @@ export default function LandingPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#F5F5F5] text-gray-900 overflow-hidden">
+      <div className="min-h-screen bg-white text-gray-900 overflow-hidden">
       
       {/* WhatsApp Floating Button */}
       <motion.a
@@ -290,7 +290,7 @@ export default function LandingPage() {
               alt="GravadorMédico"
               width={180}
               height={50}
-              className="h-10 md:h-12 w-auto"
+              className="h-12 md:h-14 w-auto"
               priority
             />
           </motion.a>
@@ -318,7 +318,7 @@ export default function LandingPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-brand-600 hover:text-brand-700 font-semibold transition-colors text-sm lg:text-base group"
               >
-                <LogIn className="w-4 h-4 lg:w-5 lg:h-5 group-hover:rotate-12 transition-transform" />
+                <User className="w-4 h-4 lg:w-5 lg:h-5 group-hover:rotate-12 transition-transform" />
                 <span>Entrar</span>
               </a>
             </motion.div>
@@ -417,7 +417,7 @@ export default function LandingPage() {
                       onClick={() => setMobileMenuOpen(false)}
                       className="flex items-center justify-center gap-2 w-full px-6 py-3 border-2 border-brand-500 text-brand-600 rounded-full font-bold hover:bg-brand-50 transition-all"
                     >
-                      <LogIn className="w-5 h-5" />
+                      <User className="w-5 h-5" />
                       Entrar
                     </a>
 
@@ -667,7 +667,7 @@ export default function LandingPage() {
                       className="flex-1 text-center md:text-left"
                     >
                       <h2 className="text-3xl md:text-4xl lg:text-5xl font-black mb-6 leading-tight">
-                        <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+                        <span className="bg-gradient-to-r from-brand-500 to-brand-300 bg-clip-text text-transparent">
                           Tudo que você precisa em um só lugar
                         </span>
                       </h2>
@@ -852,7 +852,7 @@ export default function LandingPage() {
             viewport={{ once: true }}
             className="mb-4 md:mb-6"
           >
-            <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-emerald-50 rounded-lg md:rounded-xl lg:rounded-2xl p-4 md:p-6 lg:p-7 border-2 border-emerald-200 shadow-xl">
+            <div className="bg-gradient-to-br from-brand-50 via-brand-100 to-brand-50 rounded-lg md:rounded-xl lg:rounded-2xl p-4 md:p-6 lg:p-7 border-2 border-brand-200 shadow-xl">
               <motion.h3
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
@@ -870,7 +870,7 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.3 }}
-                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-emerald-200 hover:border-emerald-400 transition-colors shadow-lg"
+                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-brand-200 hover:border-brand-400 transition-colors shadow-lg"
                 >
                   <div className="flex items-center justify-center mb-2 md:mb-3">
                     <div className="bg-red-100 rounded-full p-2 md:p-2.5">
@@ -890,7 +890,7 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.4 }}
-                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-emerald-200 hover:border-emerald-400 transition-colors shadow-lg"
+                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-brand-200 hover:border-brand-400 transition-colors shadow-lg"
                 >
                   <div className="flex items-center justify-center mb-2 md:mb-3">
                     <div className="bg-orange-100 rounded-full p-2 md:p-2.5">
@@ -910,7 +910,7 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.5 }}
-                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-emerald-200 hover:border-emerald-400 transition-colors shadow-lg"
+                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-brand-200 hover:border-brand-400 transition-colors shadow-lg"
                 >
                   <div className="flex items-center justify-center mb-2 md:mb-3">
                     <div className="bg-yellow-100 rounded-full p-2 md:p-2.5">
@@ -930,7 +930,7 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.6 }}
-                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-emerald-200 hover:border-emerald-400 transition-colors shadow-lg"
+                  className="bg-white rounded-md md:rounded-lg p-3 md:p-4 border-2 border-brand-200 hover:border-brand-400 transition-colors shadow-lg"
                 >
                   <div className="flex items-center justify-center mb-2 md:mb-3">
                     <div className="bg-brand-100 rounded-full p-2 md:p-2.5">
@@ -2087,7 +2087,7 @@ export default function LandingPage() {
                             {[
                               { icon: "▶️", name: "YouTube", color: "from-red-400 to-red-600" },
                               { icon: "📹", name: "Meet", color: "from-brand-400 to-brand-600" },
-                              { icon: "💬", name: "WhatsApp", color: "from-green-500 to-green-700" },
+                              { icon: "💬", name: "WhatsApp", color: "from-brand-400 to-brand-600" },
                               { icon: "📸", name: "Instagram", color: "from-pink-400 to-purple-600" },
                               { icon: "📱", name: "Telegram", color: "from-blue-400 to-blue-600" },
                               { icon: "🎙️", name: "Podcast", color: "from-purple-400 to-purple-600" },
@@ -2671,12 +2671,14 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="relative border-t border-brand-100 py-12 px-4 bg-gradient-to-br from-brand-600 to-brand-500">
-        <div className="container mx-auto max-w-7xl">
-          <div className="text-center space-y-6">
-            <div className="flex items-center justify-center gap-3">
+      <footer className="relative mt-20 bg-gradient-to-br from-brand-600 via-brand-500 to-brand-600 overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.1)_1px,transparent_1px)] bg-[size:64px_64px]" />
+        
+        <div className="relative max-w-4xl mx-auto px-4 py-16">
+          <div className="flex flex-col items-center gap-8 text-center">
+            <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="absolute inset-0 bg-white rounded-xl blur opacity-50" />
+                <div className="absolute inset-0 bg-white/20 rounded-xl blur-xl"></div>
                 <div className="relative bg-white p-3 rounded-xl shadow-lg">
                   <Image
                     src="/images/novo-icon-gravadormedico.png"
@@ -2696,7 +2698,6 @@ export default function LandingPage() {
               Revolucione sua prática médica com inteligência artificial. Economize tempo, melhore a qualidade dos seus prontuários e foque no que realmente importa: seus pacientes.
             </p>
 
-            {/* Botão de Suporte */}
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -2714,8 +2715,8 @@ export default function LandingPage() {
             </motion.div>
 
             <div className="flex items-center justify-center gap-8 text-sm text-white font-semibold flex-wrap">
-              <Link href="/termos-de-uso" className="hover:text-brand-100 transition-colors">Termos de Uso</Link>
-              <Link href="/politica-privacidade" className="hover:text-brand-100 transition-colors">Política de Privacidade</Link>
+              <Link href="/termos-de-uso" target="_blank" className="hover:text-brand-100 transition-colors">Termos de Uso</Link>
+              <Link href="/politica-privacidade" target="_blank" className="hover:text-brand-100 transition-colors">Política de Privacidade</Link>
               <Link href="/contato" className="hover:text-brand-100 transition-colors">Contato</Link>
             </div>
 
