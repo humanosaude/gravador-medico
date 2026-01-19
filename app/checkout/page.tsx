@@ -232,8 +232,11 @@ export default function CheckoutPage() {
       // Processa resposta da API
       if (result.success) {
         if (paymentMethod === 'pix' && result.pix_qr_code) {
-          // Mostra PIX no próprio site
-          window.location.href = `/success/pix?order_id=${result.order_id}&qr_code=${encodeURIComponent(result.pix_qr_code)}`
+          // Salva QR Code no sessionStorage (evita URL muito longa)
+          sessionStorage.setItem('pix_qr_code', result.pix_qr_code)
+          sessionStorage.setItem('pix_order_id', result.order_id)
+          // Redireciona para página de sucesso
+          window.location.href = `/success/pix?order_id=${result.order_id}`
         } else if (paymentMethod === 'credit') {
           // Mostra resultado do cartão
           window.location.href = `/success/credit?order_id=${result.order_id}&status=${result.status}`

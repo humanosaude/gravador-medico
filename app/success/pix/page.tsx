@@ -8,8 +8,18 @@ import { Check, Copy, Clock } from 'lucide-react'
 function PixSuccessContent() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get('order_id')
-  const qrCode = searchParams.get('qr_code')
+  const [qrCode, setQrCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  // Lê QR Code do sessionStorage
+  useEffect(() => {
+    const savedQrCode = sessionStorage.getItem('pix_qr_code')
+    if (savedQrCode) {
+      setQrCode(savedQrCode)
+      // Limpa após ler
+      sessionStorage.removeItem('pix_qr_code')
+    }
+  }, [])
 
   const copyToClipboard = () => {
     if (qrCode) {
