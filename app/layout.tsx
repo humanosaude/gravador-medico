@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import { Suspense } from 'react'
+import { headers } from 'next/headers' // ✅ Importar headers
 import AnalyticsTracker from '@/components/AnalyticsTracker'
 
 export const metadata: Metadata = {
@@ -13,11 +14,19 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // ✅ CAPTURAR GEOLOCALIZAÇÃO DA VERCEL (Server-Side)
+  const headersList = await headers()
+  const city = headersList.get('x-vercel-ip-city') 
+    ? decodeURIComponent(headersList.get('x-vercel-ip-city')!) 
+    : null
+  const country = headersList.get('x-vercel-ip-country')
+  const region = headersList.get('x-vercel-ip-country-region')
+
   return (
     <html lang="pt-BR">
       <head>
@@ -65,7 +74,7 @@ export default function RootLayout({
       <body className="bg-white">
         {/* Analytics Tracker - rastreia visitas automaticamente */}
         <Suspense fallback={null}>
-          <AnalyticsTracker />
+          <AnalyticsTracker city={city} country={country} region={region} />
         </Suspense>
         {children}
       </body>

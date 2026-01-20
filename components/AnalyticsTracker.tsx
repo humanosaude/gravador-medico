@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { UAParser } from 'ua-parser-js' // ✅ Importação CORRETA (com chaves)
+import { UAParser } from 'ua-parser-js'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -11,21 +11,30 @@ import { v4 as uuidv4 } from 'uuid'
  * 
  * Sistema de rastreamento profissional que captura:
  * - Device/OS/Browser (via ua-parser-js)
- * - Geolocalização (via API ipapi.co)
+ * - Geolocalização (city, country, region passados do servidor via props)
  * - UTM Parameters (campanhas de marketing)
  * - Facebook Cookies (_fbp, _fbc) para CAPI
  * - Google Click ID (gclid)
  * - Session ID persistente (localStorage)
  * 
- * Competindo com Google Analytics pela precisão!
+ * ✅ SOLUÇÃO: Recebe city/country/region do layout.tsx (Server Component)
+ * porque os headers da Vercel só existem no servidor!
  */
-export default function AnalyticsTracker() {
+
+// Interface para Props que vêm do Server Component (layout.tsx)
+interface AnalyticsProps {
+  city?: string | null
+  country?: string | null
+  region?: string | null
+}
+
+export default function AnalyticsTracker({ city, country, region }: AnalyticsProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     trackPageView()
-  }, [pathname, searchParams])
+  }, [pathname, searchParams, city, country, region])
 
   /**
    * Extrai um cookie específico do navegador
@@ -108,69 +117,22 @@ export default function AnalyticsTracker() {
       const fbc = getCookie('_fbc') || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : null)
 
       // ============================================
-      // 5. GEOLOCALIZAÇÃO (IP -> Cidade/Estado/País)
-      // ============================================
-      let geoData = { 
-        ip: null as string | null, 
-        country: null as string | null, 
-        region: null as string | null, 
-        city: null as string | null 
-      }
-
-      // Buscar geolocalização com timeout de 3 segundos
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 3000) // 3s timeout
-        
-        const geoResponse = await fetch('https://ipapi.co/json/', {
-          signal: controller.signal
-        })
-        clearTimeout(timeoutId)
-        
-        if (geoResponse.ok) {
-          const geo = await geoResponse.json()
-          geoData = {
-            ip: geo.ip || null,
-            country: geo.country_name || null,
-            region: geo.region || null,
-            city: geo.city || null
-          }
-        }
-      } catch (geoError: any) {
-        // Ignorar erro silenciosamente (não é crítico)
-        if (geoError.name !== 'AbortError') {
-          console.warn('⚠️ Geo API timeout ou erro')
-        }
-      }
-
-      // ============================================
-      // 6. REFERRER (De onde o usuário veio)
+      // 5. REFERRER (De onde o usuário veio)
       // ============================================
       const referrer = document.referrer || null
       const referrerDomain = referrer ? extractDomain(referrer) : null
 
       // ============================================
-      // 7. MONTAR OBJETO COMPLETO
+      // 6. SALVAR COM GEO (vindo do servidor via props)
       // ============================================
-      const visitData = {
-        // Página e Sessão
+      const visitDataBase = {
         page_path: pathname,
         session_id: sessionId,
-        
-        // Device/Tecnologia
         device_type: deviceType,
         os: os,
         browser: browser,
         browser_version: browserVersion,
         user_agent: navigator.userAgent,
-        
-        // Geolocalização
-        ip_address: geoData.ip,
-        country: geoData.country,
-        region: geoData.region,
-        city: geoData.city,
-        
-        // Origem do Tráfego
         referrer: referrer,
         referrer_domain: referrerDomain,
         utm_source: savedUtmSource,
@@ -178,36 +140,41 @@ export default function AnalyticsTracker() {
         utm_campaign: savedUtmCampaign,
         utm_content: utmContent,
         utm_term: utmTerm,
-        
-        // Rastreamento de Ads
         gclid: gclid,
         fbclid: fbclid,
         fbc: fbc,
         fbp: fbp,
-        
-        // Status Online
         is_online: true,
-        last_seen: new Date().toISOString()
+        last_seen: new Date().toISOString(),
+        // ✅ GEO vem do SERVER (layout.tsx lê headers da Vercel)
+        city: city || null,
+        country: country || null,
+        region: region || null,
+        ip_address: null // IP não é exposto nos headers por privacidade
       }
 
-      // ============================================
-      // 8. SALVAR NO SUPABASE
-      // ============================================
-      const { error } = await supabase
+      // Salvar IMEDIATAMENTE (sem esperar geo)
+      const { data: insertedVisit, error } = await supabase
         .from('analytics_visits')
-        .insert(visitData)
+        .insert(visitDataBase)
+        .select()
+        .single()
 
       if (error) {
         console.error('❌ Erro ao registrar visita:', error)
-      } else {
-        console.log('✅ Visita registrada:', {
-          page: pathname,
-          device: deviceType,
-          os: os,
-          city: geoData.city,
-          source: savedUtmSource || referrerDomain || 'direto'
-        })
+        return
       }
+
+      console.log('✅ Visita registrada:', {
+        page: pathname,
+        device: deviceType,
+        os: os,
+        browser: browser,
+        city: city || 'Desconhecida',
+        country: country || 'Desconhecido',
+        source: savedUtmSource || referrerDomain || 'direto'
+      })
+
     } catch (err) {
       console.error('💥 Erro no analytics tracker:', err)
     }
