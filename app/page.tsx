@@ -868,6 +868,7 @@ export default function LandingPage() {
               drag="x"
               dragConstraints={{ left: -2000, right: 0 }}
               dragElastic={0.1}
+              whileTap={{ cursor: "grabbing" }}
               animate={{
                 x: ["0%", "-50%"],
               }}
@@ -878,6 +879,7 @@ export default function LandingPage() {
                   duration: 2,
                   ease: "linear",
                 },
+                type: "tween",
               }}
             >
               {/* Duplicar array para loop infinito */}
@@ -952,7 +954,7 @@ export default function LandingPage() {
                 </Card3D>
               </motion.div>
             ))}
-                </React.Fragment>
+              </React.Fragment>
               ))}
             </motion.div>
           </div>
