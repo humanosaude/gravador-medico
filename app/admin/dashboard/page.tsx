@@ -67,11 +67,11 @@ export default function AdminDashboard() {
   const [salesChart, setSalesChart] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [period, setPeriod] = useState(7) // 7, 14 ou 30 dias
+  const [period, setPeriod] = useState(30) // MUDADO: 30 dias por padrão
   
-  // Inicializar com datas válidas (últimos 7 dias)
-  const defaultEnd = new Date()
-  const defaultStart = subDays(defaultEnd, 7)
+  // ✅ CORRIGIDO: Inicializar com datas válidas (últimos 30 dias com fuso horário correto)
+  const defaultEnd = endOfDay(new Date()) // Fim do dia atual (23:59:59)
+  const defaultStart = startOfDay(subDays(new Date(), 30)) // Início de 30 dias atrás (00:00:00)
   const [startDate, setStartDate] = useState(format(defaultStart, 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(defaultEnd, 'yyyy-MM-dd'))
   const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
@@ -150,17 +150,21 @@ export default function AdminDashboard() {
         .gte('created_at', previousStartDate.toISOString())
         .lt('created_at', startDateObj.toISOString())
 
-      // 3. Calcular métricas do período atual
-      const approvedSales = (currentSales || []).filter(s => s.status === 'approved')
-      const totalRevenue = approvedSales.reduce((sum, s) => sum + Number(s.total_amount), 0)
+      // ✅ CORRIGIDO: Aceitar múltiplos status (approved, paid, completed)
+      const approvedSales = (currentSales || []).filter(s => 
+        s.status === 'approved' || s.status === 'paid' || s.status === 'completed'
+      )
+      const totalRevenue = approvedSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0)
       const totalOrders = approvedSales.length
       const uniqueEmails = new Set(approvedSales.map(s => s.customer_email))
       const totalCustomers = uniqueEmails.size
       const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
       // 4. Calcular métricas do período anterior
-      const previousApprovedSales = (previousSales || []).filter(s => s.status === 'approved')
-      const previousRevenue = previousApprovedSales.reduce((sum, s) => sum + Number(s.total_amount), 0)
+      const previousApprovedSales = (previousSales || []).filter(s => 
+        s.status === 'approved' || s.status === 'paid' || s.status === 'completed'
+      )
+      const previousRevenue = previousApprovedSales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0)
       const previousOrders = previousApprovedSales.length
 
       // 5. Calcular crescimentos
@@ -188,10 +192,10 @@ export default function AdminDashboard() {
         conversionRate,
       })
 
-      // 6. Preparar dados para gráfico (últimos N dias)
+      // 6. Preparar dados para gráfico (últimos N dias do período filtrado)
       const chartData = []
       for (let i = period - 1; i >= 0; i--) {
-        const date = subDays(new Date(), i)
+        const date = subDays(endOfDay(new Date()), i)
         const dateStr = format(date, 'dd/MM')
         
         const daySales = approvedSales.filter(s => {
@@ -199,7 +203,7 @@ export default function AdminDashboard() {
           return format(saleDate, 'dd/MM') === dateStr
         })
         
-        const dayRevenue = daySales.reduce((sum, s) => sum + Number(s.total_amount), 0)
+        const dayRevenue = daySales.reduce((sum, s) => sum + Number(s.total_amount || 0), 0)
         
         chartData.push({
           date: dateStr,

@@ -43,9 +43,9 @@ export default function SalesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
   
-  // Inicializar com datas válidas (últimos 30 dias)
-  const defaultEnd = new Date()
-  const defaultStart = subDays(defaultEnd, 30)
+  // ✅ CORRIGIDO: Inicializar com datas válidas (últimos 30 dias com fuso horário correto)
+  const defaultEnd = endOfDay(new Date())
+  const defaultStart = startOfDay(subDays(new Date(), 30))
   const [startDate, setStartDate] = useState(format(defaultStart, 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(defaultEnd, 'yyyy-MM-dd'))
   const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
@@ -140,16 +140,16 @@ export default function SalesPage() {
   // Contadores para as tabs
   const counts = {
     all: sales.length,
-    approved: sales.filter(s => s.status === 'approved').length,
+    approved: sales.filter(s => s.status === 'approved' || s.status === 'paid' || s.status === 'completed').length,
     pending: sales.filter(s => s.status === 'pending').length,
     refused: sales.filter(s => s.status === 'refused').length,
     refunded: sales.filter(s => s.status === 'refunded').length,
   }
 
-  // Métricas
+  // ✅ CORRIGIDO: Métricas aceitam múltiplos status
   const totalRevenue = sales
-    .filter(s => s.status === 'approved')
-    .reduce((sum, s) => sum + s.total_amount, 0)
+    .filter(s => s.status === 'approved' || s.status === 'paid' || s.status === 'completed')
+    .reduce((sum, s) => sum + (s.total_amount || 0), 0)
 
   const avgTicket = counts.approved > 0 ? totalRevenue / counts.approved : 0
 
