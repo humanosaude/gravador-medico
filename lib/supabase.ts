@@ -26,8 +26,10 @@ export interface User {
   id: string
   email: string
   name?: string
+  password_hash?: string
   appmax_customer_id?: string
   has_access: boolean
+  role?: string
   created_at: string
   updated_at: string
 }

@@ -1,5 +1,6 @@
 import { getUserByEmail } from './supabase'
 import { SignJWT, jwtVerify } from 'jose'
+import bcrypt from 'bcryptjs'
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -32,8 +33,7 @@ export async function verifyToken(token: string): Promise<{ email: string } | nu
 }
 
 /**
- * Autentica um usuário (login simples por email)
- * Nota: Em produção, você deve adicionar senha hash
+ * Autentica um usuário com validação de senha bcrypt
  */
 export async function authenticateUser(email: string, password: string): Promise<boolean> {
   try {
@@ -49,9 +49,18 @@ export async function authenticateUser(email: string, password: string): Promise
       return false
     }
 
-    // Por enquanto, aceita qualquer senha para usuários com acesso
-    // Em produção, você deve verificar hash de senha
-    // const isValidPassword = await bcrypt.compare(password, user.password_hash)
+    // Verificar senha hash (bcrypt)
+    if (!user.password_hash) {
+      // Se não tem password_hash, rejeita (segurança)
+      console.warn(`Usuário ${email} sem password_hash configurado`)
+      return false
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password_hash)
+    
+    if (!isValidPassword) {
+      return false
+    }
     
     return true
   } catch (error) {

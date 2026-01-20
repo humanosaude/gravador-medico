@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   -- Dados de autenticação
   email TEXT UNIQUE NOT NULL,
   name TEXT,
+  password_hash TEXT, -- Hash bcrypt da senha
   
   -- Relacionamento com APPMAX
   appmax_customer_id TEXT,
@@ -27,6 +28,14 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Adicionar coluna password_hash se a tabela já existir
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash') THEN
+    ALTER TABLE users ADD COLUMN password_hash TEXT;
+  END IF;
+END $$;
 
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -52,22 +61,38 @@ CREATE POLICY "Permitir escrita de users" ON users FOR ALL USING (true);
 -- ========================================
 -- CRIAR USUÁRIOS ADMIN
 -- ========================================
--- Insere os 2 admins se não existirem
+-- Insere os 2 admins com senhas hash (bcrypt)
 
 -- Admin 1: contato@helciomattos.com.br
-INSERT INTO users (email, name, has_access, role)
-VALUES ('contato@helciomattos.com.br', 'Helcio Mattos', true, 'admin')
+-- Senha: Beagle3005*
+INSERT INTO users (email, name, password_hash, has_access, role)
+VALUES (
+  'contato@helciomattos.com.br', 
+  'Helcio Mattos', 
+  '$2b$10$BS1dHmS0hydDWeRZVtvQo.eTkgF3jRlbex7iWxCLyi63WNUUZ2wYC',
+  true, 
+  'admin'
+)
 ON CONFLICT (email) DO UPDATE
 SET 
+  password_hash = '$2b$10$BS1dHmS0hydDWeRZVtvQo.eTkgF3jRlbex7iWxCLyi63WNUUZ2wYC',
   has_access = true,
   role = 'admin',
   updated_at = NOW();
 
 -- Admin 2: gabriel_acardoso@hotmail.com
-INSERT INTO users (email, name, has_access, role)
-VALUES ('gabriel_acardoso@hotmail.com', 'Gabriel Cardoso', true, 'admin')
+-- Senha: 26+Sucesso+GH
+INSERT INTO users (email, name, password_hash, has_access, role)
+VALUES (
+  'gabriel_acardoso@hotmail.com', 
+  'Gabriel Cardoso', 
+  '$2b$10$tgjV4CZVgzbv815GhSqGaez46r.0URYDFWQEFJ.PyhSxvyQ.Me3Ci',
+  true, 
+  'admin'
+)
 ON CONFLICT (email) DO UPDATE
 SET 
+  password_hash = '$2b$10$tgjV4CZVgzbv815GhSqGaez46r.0URYDFWQEFJ.PyhSxvyQ.Me3Ci',
   has_access = true,
   role = 'admin',
   updated_at = NOW();
@@ -78,5 +103,5 @@ SET
 -- Execute este script no Supabase SQL Editor
 -- 
 -- ACESSO:
--- Email: contato@helciomattos.com.br OU gabriel_acardoso@hotmail.com
--- Senha: QUALQUER (o sistema aceita qualquer senha por enquanto - veja lib/auth.ts)
+-- Email: contato@helciomattos.com.br | Senha: Beagle3005*
+-- Email: gabriel_acardoso@hotmail.com | Senha: 26+Sucesso+GH
