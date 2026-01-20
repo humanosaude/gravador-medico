@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendPurchaseEvent } from '@/lib/meta-capi'
-import {
-  syncCustomerFromAppmax,
-  syncProductFromAppmax,
-  createOrUpdateSaleFromAppmax,
-  saveSaleItems,
-  createCRMContactFromSale,
-  updateCustomerMetrics,
-  updateProductMetrics,
-} from '@/lib/appmax-sync'
 
 /**
- * =============================================
- * WEBHOOK APPMAX - V4.0 COMPLETO
- * =============================================
- * ✅ Sincronização completa: Customers, Products, Sales, CRM
- * ✅ Usa funções utilitárias modulares
- * ✅ Atualiza métricas agregadas
- * ✅ Meta CAPI integrado
- * ✅ Logs detalhados
- * =============================================
+ * Webhook da APPMAX - VERSÃO 3.0 BLINDADA + META CAPI
+ * 
+ * ✅ Usa Service Role Key para ignorar RLS
+ * ✅ Trata todos os eventos: OrderCreated, OrderPaid, PaymentAuthorized
+ * ✅ UPSERT para evitar duplicatas
+ * ✅ Extração segura (funciona mesmo se customer vier null)
+ * ✅ Logs detalhados para debug
+ * ✅ 🆕 Envia eventos de conversão para Meta CAPI
+ * 
+ * URL: https://www.gravadormedico.com.br/api/webhook/appmax
  */
 
-// Cliente Supabase ADMIN (ignora RLS)
+// Cliente Supabase ADMIN (ignora RLS e salva sempre)
+// Só inicializa se a chave existir (evita erro no build)
 const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY 
   ? createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,7 +49,7 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
   console.log('🔔 ============================================')
-  console.log('🔔 WEBHOOK APPMAX V4.0 RECEBIDO:', new Date().toISOString())
+  console.log('🔔 WEBHOOK APPMAX RECEBIDO:', new Date().toISOString())
   console.log('🔔 ============================================')
   
   try {
@@ -72,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Ler o corpo da requisição
     const body = await request.json()
     
-    console.log('📦 Payload recebido:', JSON.stringify(body, null, 2))
+    console.log('📦 Payload completo recebido:', JSON.stringify(body, null, 2))
     console.log('🔔 Evento:', body.event || 'unknown')
 
     // IP de origem
@@ -83,7 +76,7 @@ export async function POST(request: NextRequest) {
     console.log('🔐 IP:', ipAddress)
 
     // 1️⃣ SALVAR LOG (AUDITORIA)
-    const { data: webhookLog } = await supabaseAdmin
+    const { data: webhookLog } = await supabaseAdmin!
       .from('webhooks_logs')
       .insert({
         source: 'appmax',
@@ -94,7 +87,7 @@ export async function POST(request: NextRequest) {
         processed: false,
       })
       .select()
-      .maybeSingle()
+      .single()
 
     console.log('✅ Log salvo:', webhookLog?.id)
 
@@ -119,6 +112,7 @@ export async function POST(request: NextRequest) {
     const customerCpf = customer.cpf || body.cpf || null
 
     // Status e Valores
+    // Se o evento for de pagamento confirmado, sempre marca como approved
     const eventType = body.event || ''
     const rawStatus = data.status || body.status || 'pending'
     const orderStatus = (eventType.toLowerCase().includes('paid') || eventType.toLowerCase().includes('authorized'))
@@ -127,16 +121,10 @@ export async function POST(request: NextRequest) {
     
     const totalAmount = parseFloat(data.total || data.full_payment_amount || body.total || body.amount || 0)
     const discount = parseFloat(data.discount || body.discount || 0)
-    const subtotal = totalAmount + discount
     const paymentMethod = (data.payment_type || data.payment_method || body.payment_method || 'pix').toLowerCase()
 
     // Produtos
     const products = data.products || body.products || data.items || body.items || []
-
-    // UTM
-    const utmSource = body.tracking?.utm_source || body.utm_source || null
-    const utmCampaign = body.tracking?.utm_campaign || body.utm_campaign || null
-    const utmMedium = body.tracking?.utm_medium || body.utm_medium || null
 
     console.log('📋 Dados extraídos:', {
       orderId,
@@ -150,105 +138,75 @@ export async function POST(request: NextRequest) {
       products: products.length,
     })
 
-    // 3️⃣ SINCRONIZAR CLIENTE
-    const { customer_id, error: customerError } = await syncCustomerFromAppmax(supabaseAdmin, {
-      customer_id: (customer.id || body.customer_id)?.toString(),
-      name: customerName,
-      email: customerEmail,
-      phone: customerPhone,
-      cpf: customerCpf,
-      utm_source: utmSource,
-      utm_campaign: utmCampaign,
-      utm_medium: utmMedium,
-    })
+    // 3️⃣ SALVAR VENDA (UPSERT - Cria ou atualiza)
+    console.log('💾 Salvando venda...')
+    
+    const { data: sale, error: saleError } = await supabaseAdmin!
+      .from('sales')
+      .upsert({
+        appmax_order_id: orderId,
+        appmax_customer_id: (customer.id || body.customer_id)?.toString() || null,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        customer_cpf: customerCpf,
+        total_amount: totalAmount,
+        discount: discount,
+        subtotal: totalAmount + discount,
+        status: orderStatus,
+        payment_method: paymentMethod as any,
+        utm_source: body.tracking?.utm_source || body.utm_source,
+        utm_campaign: body.tracking?.utm_campaign || body.utm_campaign,
+        utm_medium: body.tracking?.utm_medium || body.utm_medium,
+        ip_address: ipAddress,
+        paid_at: orderStatus === 'approved' ? new Date().toISOString() : null,
+        metadata: {
+          raw_webhook: body,
+          event_type: body.event,
+          processing_time_ms: Date.now() - startTime,
+        },
+      }, {
+        onConflict: 'appmax_order_id', // Atualiza se já existir
+      })
+      .select()
+      .single()
 
-    if (customerError) {
-      console.warn('⚠️ Erro ao sincronizar cliente (continuando):', customerError)
-    }
-
-    // 4️⃣ CRIAR/ATUALIZAR VENDA
-    const { sale, error: saleError } = await createOrUpdateSaleFromAppmax(supabaseAdmin, {
-      appmax_order_id: orderId,
-      customer_id: customer_id,
-      customer_name: customerName,
-      customer_email: customerEmail,
-      customer_phone: customerPhone,
-      customer_cpf: customerCpf,
-      total_amount: totalAmount,
-      discount: discount,
-      subtotal: subtotal,
-      status: orderStatus,
-      payment_method: paymentMethod,
-      utm_source: utmSource,
-      utm_campaign: utmCampaign,
-      utm_medium: utmMedium,
-      ip_address: ipAddress,
-      metadata: {
-        raw_webhook: body,
-        event_type: body.event,
-        processing_time_ms: Date.now() - startTime,
-      },
-    })
-
-    if (saleError || !sale) {
-      console.error('❌ Erro crítico ao salvar venda:', saleError)
+    if (saleError) {
+      console.error('❌ Erro ao salvar venda:', saleError)
       throw saleError
     }
 
     console.log('✅ Venda salva:', sale.id, '- Status:', sale.status)
 
-    // 5️⃣ SALVAR ITENS DA VENDA
+    // 4️⃣ SALVAR ITENS DA VENDA
     if (products && products.length > 0) {
-      const productsFormatted = products.map((product: any, index: number) => ({
-        sku: product.sku || product.id?.toString() || `product_${index}`,
-        product_id: product.id?.toString(),
-        name: product.name || 'Produto',
+      console.log('📦 Salvando', products.length, 'produtos...')
+      
+      const salesItems = products.map((product: any, index: number) => ({
+        sale_id: sale.id,
+        product_id: product.sku || product.id?.toString() || `product_${index}`,
+        product_name: product.name || 'Produto',
+        product_type: index === 0 ? 'main' : 'bump',
         price: parseFloat(product.price || 0),
         quantity: parseInt(product.qty || product.quantity || 1),
-        type: index === 0 ? 'main' : 'bump',
       }))
 
-      const { success: itemsSuccess, error: itemsError } = await saveSaleItems(
-        supabaseAdmin,
-        sale.id,
-        productsFormatted
-      )
+      const { error: itemsError } = await supabaseAdmin!
+        .from('sales_items')
+        .upsert(salesItems, {
+          onConflict: 'sale_id,product_id'
+        })
 
       if (itemsError) {
-        console.warn('⚠️ Erro ao salvar itens (continuando):', itemsError)
-      }
-
-      // Atualizar métricas dos produtos
-      for (const prod of productsFormatted) {
-        const { product_id } = await syncProductFromAppmax(supabaseAdmin, prod)
-        if (product_id) {
-          await updateProductMetrics(supabaseAdmin, product_id)
-        }
+        console.error('⚠️ Erro ao salvar itens:', itemsError)
+      } else {
+        console.log('✅ Itens salvos')
       }
     }
 
-    // 6️⃣ CRIAR/ATUALIZAR CONTATO CRM
-    if (customer_id) {
-      const { contact_id, error: crmError } = await createCRMContactFromSale(supabaseAdmin, {
-        customer_id: customer_id,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        customer_phone: customerPhone,
-        total_amount: totalAmount,
-        status: orderStatus,
-      })
-
-      if (crmError) {
-        console.warn('⚠️ Erro ao criar contato CRM (continuando):', crmError)
-      }
-
-      // Atualizar métricas do cliente
-      await updateCustomerMetrics(supabaseAdmin, customer_id)
-    }
-
-    // 7️⃣ ATUALIZAR LOG COMO SUCESSO
+    // 5️⃣ ATUALIZAR LOG COMO SUCESSO
     if (webhookLog?.id) {
-      await supabaseAdmin
+      await supabaseAdmin!
         .from('webhooks_logs')
         .update({
           processed: true,
@@ -258,18 +216,18 @@ export async function POST(request: NextRequest) {
         .eq('id', webhookLog.id)
     }
 
-    // 8️⃣ 🚀 ENVIAR EVENTO PARA META CAPI (Se venda aprovada)
+    // 6️⃣ 🚀 ENVIAR EVENTO PARA META CAPI (Se venda aprovada)
     if (orderStatus === 'approved' && totalAmount > 0) {
       console.log('🚀 Enviando conversão para Meta CAPI...')
       
-      // Buscar dados de tracking (fbp, fbc)
+      // Buscar dados de tracking (fbp, fbc, session_id) do analytics
       let trackingData = { fbc: null, fbp: null, ipAddress, userAgent: null }
       
       if (customerEmail) {
-        const { data: visits } = await supabaseAdmin
+        const { data: visits } = await supabaseAdmin!
           .from('analytics_visits')
-          .select('fbc, fbp, ip_address, user_agent')
-          .ilike('referrer', `%${customerEmail}%`)
+          .select('fbc, fbp, ip_address, user_agent, session_id')
+          .ilike('referrer', `%${customerEmail}%`) // Tentar encontrar por email no referrer
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -308,13 +266,11 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ Webhook processado em ${Date.now() - startTime}ms`)
-    console.log('🎉 ============================================')
 
     return NextResponse.json({
       success: true,
-      message: 'Venda registrada e sincronizada',
+      message: 'Venda registrada',
       sale_id: sale.id,
-      customer_id: customer_id,
       processing_time_ms: Date.now() - startTime,
     })
 
@@ -335,16 +291,8 @@ export async function POST(request: NextRequest) {
 // Endpoint GET para testar
 export async function GET() {
   return NextResponse.json({
-    message: 'Webhook APPMAX v4.0 - Sincronização Completa',
+    message: 'Webhook APPMAX v3.0 - Blindado',
     timestamp: new Date().toISOString(),
     status: 'operational',
-    features: [
-      'Customers sync',
-      'Products sync',
-      'Sales management',
-      'CRM integration',
-      'Metrics aggregation',
-      'Meta CAPI',
-    ],
   })
 }

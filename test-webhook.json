@@ -1,0 +1,25 @@
+{
+  "transaction": "approved",
+  "customer": {
+    "id": "TEST-FINAL-001",
+    "name": "Cliente Teste Completo",
+    "email": "teste-completo@exemplo.com",
+    "phone": "11999887766"
+  },
+  "products": [
+    {
+      "id": "PROD-VP-PRO",
+      "sku": "VP-PRO-2025",
+      "name": "VoicePen PRO - Gravador Médico",
+      "price": 297.00,
+      "quantity": 1
+    }
+  ],
+  "total": 297.00,
+  "order_id": "TEST-SYNC-FINAL-001",
+  "payment_method": "credit_card",
+  "payment_installments": 1,
+  "utm_source": "teste",
+  "utm_medium": "script",
+  "utm_campaign": "sincronizacao-final"
+}
