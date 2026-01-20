@@ -2,12 +2,24 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
+// Cliente público (com RLS)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Cliente admin (ignora RLS - APENAS para webhook/backend)
+export const supabaseAdmin = supabaseServiceRoleKey 
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : supabase // Fallback para o cliente normal se não tiver service role
 
 // Tipos
 export interface User {
@@ -18,6 +30,49 @@ export interface User {
   has_access: boolean
   created_at: string
   updated_at: string
+}
+
+export interface Profile {
+  id: string
+  email: string
+  full_name?: string
+  role: 'user' | 'admin' | 'support'
+  created_at: string
+  updated_at: string
+}
+
+export interface Sale {
+  id: string
+  appmax_order_id: string
+  appmax_customer_id?: string
+  customer_name: string
+  customer_email: string
+  customer_phone?: string
+  customer_cpf?: string
+  total_amount: number
+  discount: number
+  subtotal: number
+  status: 'pending' | 'approved' | 'rejected' | 'refunded' | 'cancelled'
+  payment_method: 'pix' | 'credit_card' | 'boleto'
+  utm_source?: string
+  utm_campaign?: string
+  utm_medium?: string
+  ip_address?: string
+  created_at: string
+  updated_at: string
+  paid_at?: string
+  metadata?: Record<string, any>
+}
+
+export interface SaleItem {
+  id: string
+  sale_id: string
+  product_id: string
+  product_name: string
+  product_type: 'main' | 'bump' | 'upsell'
+  price: number
+  quantity: number
+  created_at: string
 }
 
 /**
