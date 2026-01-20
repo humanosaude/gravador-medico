@@ -2243,16 +2243,16 @@ export default function LandingPage() {
 
       {/* GARANTIA */}
       <section id="garantia" className="relative py-12 md:py-20 lg:py-24 px-4 bg-white">
-        <div className="container mx-auto max-w-3xl">
+        <div className="container mx-auto max-w-lg md:max-w-3xl">
           
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="max-w-3xl mx-auto"
+            className="max-w-lg md:max-w-3xl mx-auto"
           >
             <Card3D className="group">
-              <div className="relative bg-gradient-to-br from-brand-50 to-brand-50 backdrop-blur-xl rounded-xl md:rounded-2xl p-5 md:p-7 border-2 border-brand-200 text-center overflow-hidden shadow-2xl">
+              <div className="relative bg-gradient-to-br from-brand-50 to-brand-50 backdrop-blur-xl rounded-xl md:rounded-2xl p-4 md:p-7 border-2 border-brand-200 text-center overflow-hidden shadow-2xl">
                 
                 {/* Glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-brand-500 to-brand-500 opacity-0 group-hover:opacity-5 transition-opacity" />
@@ -2261,29 +2261,29 @@ export default function LandingPage() {
                 <motion.div
                   animate={{ scale: [1, 1.05, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
-                  className="relative inline-block mb-4 md:mb-5"
+                  className="relative inline-block mb-3 md:mb-5"
                 >
                   <div className="absolute inset-0 bg-brand-500 rounded-full blur-2xl opacity-30" />
-                  <div className="relative bg-gradient-to-br from-brand-500 to-brand-300 p-4 md:p-5 rounded-full shadow-xl">
-                    <Shield className="w-10 h-10 md:w-12 md:h-12 text-white" />
+                  <div className="relative bg-gradient-to-br from-brand-500 to-brand-300 p-3 md:p-5 rounded-full shadow-xl">
+                    <Shield className="w-8 h-8 md:w-12 md:h-12 text-white" />
                   </div>
                 </motion.div>
 
-                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black mb-3 md:mb-4 px-2">
+                <h2 className="text-xl sm:text-2xl md:text-4xl font-black mb-2 md:mb-4 px-2">
                   <span className="bg-gradient-to-r from-brand-500 to-brand-300 bg-clip-text text-transparent">
                     Garantia de 7 Dias
                   </span>
                 </h2>
 
-                <p className="text-base md:text-lg text-gray-700 leading-relaxed mb-3 md:mb-4 max-w-2xl mx-auto px-2">
+                <p className="text-sm md:text-lg text-gray-700 leading-snug md:leading-relaxed mb-2 md:mb-4 max-w-2xl mx-auto px-2">
                   Teste o método. Experimente. Configure em 5 minutos. Grave sua primeira consulta. Use durante uma semana inteira.
                 </p>
 
-                <p className="text-base md:text-lg text-gray-700 leading-relaxed mb-4 md:mb-5 max-w-2xl mx-auto px-2">
+                <p className="text-sm md:text-lg text-gray-700 leading-snug md:leading-relaxed mb-3 md:mb-5 max-w-2xl mx-auto px-2">
                   Se não ficar satisfeito, por qualquer motivo, é só entrar em contato. Devolvemos 100% do seu dinheiro.
                 </p>
 
-                <div className="inline-block bg-brand-100 border-2 border-brand-300 rounded-lg md:rounded-xl p-3 md:p-4">
+                <div className="inline-block bg-brand-100 border-2 border-brand-300 rounded-lg md:rounded-xl p-2 md:p-4">
                   <p className="text-brand-700 text-xs md:text-sm font-bold">
                     Sem perguntas. Sem burocracia. Rápido e simples.
                   </p>
@@ -2295,7 +2295,7 @@ export default function LandingPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: 0.3 }}
-                  className="mt-6 md:mt-7"
+                  className="mt-4 md:mt-7"
                 >
                   <motion.button
                     onClick={scrollToCheckout}
@@ -2303,11 +2303,11 @@ export default function LandingPage() {
                       scale: [1, 1.03, 1]
                     }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="group relative inline-flex items-center gap-3 bg-gradient-to-r from-[#5DBEA3] via-[#80D4C3] to-[#5DBEA3] bg-[length:200%_100%] animate-gradient text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full text-lg sm:text-xl font-black shadow-2xl hover:shadow-[#5DBEA3]/50 transition-all whitespace-nowrap"
+                    className="group relative inline-flex items-center gap-2 bg-gradient-to-r from-[#5DBEA3] via-[#80D4C3] to-[#5DBEA3] bg-[length:200%_100%] animate-gradient text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg font-black shadow-2xl hover:shadow-[#5DBEA3]/50 transition-all whitespace-nowrap max-w-xs mx-auto"
                   >
-                    <Mic className="w-5 h-5 flex-shrink-0" />
+                    <Mic className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                     <span>Testar sem risco</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
                   </motion.button>
                   <p className="text-sm md:text-base text-gray-600 mt-3 font-semibold">Garantia total • Apenas R$ 36</p>
                 </motion.div>
@@ -2617,9 +2617,14 @@ export default function LandingPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 {[
                   "Ginecologia", "Ortopedia", "Clínica Geral", "Pediatria",
-                  "Dermatologia", "Psiquiatria", "Endocrinologia", "Cardiologia"
+                  "Dermatologia", "Psiquiatria", "Endocrinologia", "Cardiologia",
+                  "Neurologia", "Oftalmologia", "Otorrinolaringologia", "Urologia",
+                  "Gastroenterologia", "Pneumologia", "Nefrologia", "Reumatologia",
+                  "Oncologia", "Hematologia", "Infectologia", "Geriatria",
+                  "Medicina Intensiva", "Anestesiologia", "Radiologia", "Patologia",
+                  "Cirurgia Geral", "Medicina do Trabalho", "Medicina Esportiva", "Nutrologia"
                 ].map((specialty, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg hover:bg-brand-50 transition-colors">
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg hover:bg-brand-50 transition-colors cursor-pointer">
                     <h3 className="font-bold text-gray-900">{specialty}</h3>
                   </div>
                 ))}
