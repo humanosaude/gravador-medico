@@ -732,7 +732,7 @@ export default function LandingPage() {
                         {/* Mockup */}
                         <div className="relative z-10">
                           <Image 
-                            src="/images/MOCKUP FINAL - METODO GRAVADOR MEDICO.png"
+                            src="/images/mockup-2-gravador-medico.jpeg"
                             alt="Método Gravador Médico"
                             width={600}
                             height={500}
