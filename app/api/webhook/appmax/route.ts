@@ -14,16 +14,19 @@ import { createClient } from '@supabase/supabase-js'
  */
 
 // Cliente Supabase ADMIN (ignora RLS e salva sempre)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+// Só inicializa se a chave existir (evita erro no build)
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY 
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+  : null
 
 // Mapeia status da Appmax para nosso banco
 function mapStatusToDatabase(appmaxStatus: string): string {
@@ -44,6 +47,15 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
   try {
+    // Verificar se o Supabase Admin está configurado
+    if (!supabaseAdmin) {
+      console.error('❌ SUPABASE_SERVICE_ROLE_KEY não configurada!')
+      return NextResponse.json(
+        { error: 'Servidor mal configurado' },
+        { status: 500 }
+      )
+    }
+
     const body = await request.json()
 
     console.log('🔔 Webhook APPMAX - Evento:', body.event || 'unknown')
@@ -57,7 +69,7 @@ export async function POST(request: NextRequest) {
     console.log('🔐 IP:', ipAddress)
 
     // 1️⃣ SALVAR LOG (AUDITORIA)
-    const { data: webhookLog } = await supabaseAdmin
+    const { data: webhookLog } = await supabaseAdmin!
       .from('webhooks_logs')
       .insert({
         source: 'appmax',
@@ -116,7 +128,7 @@ export async function POST(request: NextRequest) {
     // 3️⃣ SALVAR VENDA (UPSERT - Cria ou atualiza)
     console.log('💾 Salvando venda...')
     
-    const { data: sale, error: saleError } = await supabaseAdmin
+    const { data: sale, error: saleError } = await supabaseAdmin!
       .from('sales')
       .upsert({
         appmax_order_id: orderId,
@@ -166,7 +178,7 @@ export async function POST(request: NextRequest) {
         quantity: parseInt(product.qty || product.quantity || 1),
       }))
 
-      const { error: itemsError } = await supabaseAdmin
+      const { error: itemsError } = await supabaseAdmin!
         .from('sales_items')
         .upsert(salesItems, {
           onConflict: 'sale_id,product_id'
@@ -181,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     // 5️⃣ ATUALIZAR LOG COMO SUCESSO
     if (webhookLog?.id) {
-      await supabaseAdmin
+      await supabaseAdmin!
         .from('webhooks_logs')
         .update({
           processed: true,
