@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { Suspense } from 'react'
 import { headers } from 'next/headers' // ✅ Importar headers
@@ -13,12 +13,13 @@ export const metadata: Metadata = {
     shortcut: '/images/novo-icon-gravadormedico.png',
     apple: '/images/novo-icon-gravadormedico.png',
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5, // Permite zoom manual (acessibilidade)
-    userScalable: true,
-  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5, // Permite zoom manual (acessibilidade)
+  userScalable: true,
 }
 
 export default async function RootLayout({

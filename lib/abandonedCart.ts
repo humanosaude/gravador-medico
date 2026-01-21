@@ -21,12 +21,18 @@ export async function saveAbandonedCart(data: {
   try {
     // Recuperar session_id do sessionStorage
     const sessionId = sessionStorage.getItem('session_id') || `session_${Date.now()}`
+    
+    // ✅ SEMPRE salvar session_id no sessionStorage
+    if (!sessionStorage.getItem('session_id')) {
+      sessionStorage.setItem('session_id', sessionId)
+    }
 
-    // Verificar se já existe um carrinho para este email ou sessão
+    // ✅ Buscar carrinho existente PRIORITARIAMENTE por session_id
+    // Isso permite capturar dados parciais mesmo sem email
     const { data: existing, error: searchError } = await supabase
       .from('abandoned_carts')
-      .select('id')
-      .or(`customer_email.eq.${data.customer_email},session_id.eq.${sessionId}`)
+      .select('id, customer_email')
+      .eq('session_id', sessionId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -47,10 +53,11 @@ export async function saveAbandonedCart(data: {
       order_bumps: data.order_bumps || null,
       discount_code: data.discount_code,
       cart_value: data.cart_value,
-      utm_source: data.utm_source || sessionStorage.getItem('utm_source'),
-      utm_medium: data.utm_medium || sessionStorage.getItem('utm_medium'),
-      utm_campaign: data.utm_campaign || sessionStorage.getItem('utm_campaign'),
       session_id: sessionId,
+      // TODO: Adicionar UTM depois que as colunas forem criadas no banco
+      // utm_source: data.utm_source || sessionStorage.getItem('utm_source'),
+      // utm_medium: data.utm_medium || sessionStorage.getItem('utm_medium'),
+      // utm_campaign: data.utm_campaign || sessionStorage.getItem('utm_campaign'),
     }
 
     if (existing?.id) {

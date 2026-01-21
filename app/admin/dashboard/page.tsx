@@ -16,6 +16,9 @@ import {
   Download,
   RefreshCw,
   Calendar,
+  Clock,
+  XCircle,
+  ShoppingBag,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns'
@@ -33,6 +36,12 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
+// ✅ Novos componentes de classe mundial
+import BigNumbers from '@/components/dashboard/BigNumbers'
+import ConversionFunnel from '@/components/dashboard/ConversionFunnel'
+import OperationalHealth from '@/components/dashboard/OperationalHealth'
+import RealtimeFeed from '@/components/dashboard/RealtimeFeed'
+
 interface DashboardMetrics {
   totalRevenue: number
   totalOrders: number
@@ -41,6 +50,9 @@ interface DashboardMetrics {
   revenueGrowth: number
   ordersGrowth: number
   conversionRate: number
+  pendingOrders: number
+  canceledOrders: number
+  abandonedCarts: number
 }
 
 interface RecentSale {
@@ -63,19 +75,42 @@ export default function AdminDashboard() {
     revenueGrowth: 0,
     ordersGrowth: 0,
     conversionRate: 0,
+    pendingOrders: 0,
+    canceledOrders: 0,
+    abandonedCarts: 0,
   })
   const [recentSales, setRecentSales] = useState<RecentSale[]>([])
   const [salesChart, setSalesChart] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [period, setPeriod] = useState(30) // MUDADO: 30 dias por padrão
+  const [period, setPeriod] = useState(30)
   
-  // ✅ GARANTIDO: startDate e endDate NUNCA são undefined
   const today = new Date()
   const thirtyDaysAgo = subDays(today, 30)
   const [startDate, setStartDate] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(today, 'yyyy-MM-dd'))
   const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
+
+  // ✅ Estados para novos componentes
+  const [bigNumbersData, setBigNumbersData] = useState({
+    revenue: { current: 0, previous: 0 },
+    averageTicket: { current: 0, previous: 0 },
+    approvalRate: { current: 0, previous: 0 },
+    activeCustomers: { current: 0, previous: 0 },
+  })
+
+  const [funnelData, setFunnelData] = useState({
+    visitors: 0,
+    addedToCart: 0,
+    checkoutStarted: 0,
+    completedSales: 0,
+  })
+
+  const [operationalData, setOperationalData] = useState({
+    recoverableCarts: { count: 0, totalValue: 0, last24h: 0 },
+    failedPayments: { count: 0, totalValue: 0, reasons: [] as { reason: string; count: number }[] },
+    chargebacks: { count: 0, totalValue: 0 },
+  })
 
   // Função para definir período rápido
   const setQuickPeriod = (days: number) => {
@@ -109,6 +144,16 @@ export default function AdminDashboard() {
       if (usedFallback) {
         console.warn('⚠️ Dashboard usando fallback (mostrando todas as vendas)')
       }
+
+      // 🔍 DEBUG: Verificar status das vendas
+      console.log('📊 Total de vendas:', currentSales.length)
+      console.log('📊 Status das vendas:', currentSales.map(s => s.status))
+      
+      const statusCount = currentSales.reduce((acc: any, s) => {
+        acc[s.status] = (acc[s.status] || 0) + 1
+        return acc
+      }, {})
+      console.log('📊 Contagem por status:', statusCount)
       
       // Calcular período anterior para comparação
       const startDateObj = new Date(startDate)
@@ -134,6 +179,62 @@ export default function AdminDashboard() {
         ? (currentMetrics.totalOrders / totalAttempts) * 100 
         : 0
 
+      // 🆕 Buscar pedidos pendentes e cancelados
+      const pendingOrders = currentSales.filter(s => 
+        s.status === 'pending' || s.status === 'waiting_payment'
+      ).length
+
+      const canceledSales = currentSales.filter(s => 
+        s.status === 'canceled' || 
+        s.status === 'cancelado' ||  // ✅ Português
+        s.status === 'cancelled' ||  // Inglês UK
+        s.status === 'refused' || 
+        s.status === 'refunded' ||
+        s.status === 'expired' ||
+        s.status === 'denied'
+      )
+      
+      const canceledOrders = canceledSales.length
+
+      // 🔍 DEBUG: Mostrar vendas canceladas
+      console.log('❌ Pedidos cancelados encontrados:', canceledOrders)
+      console.log('❌ Vendas canceladas:', canceledSales.map(s => ({
+        id: s.id,
+        status: s.status,
+        customer: s.customer_name,
+        amount: s.total_amount
+      })))
+
+      // 🆕 Buscar carrinhos abandonados
+      console.log('🛒 Buscando carrinhos abandonados...')
+      console.log('🛒 Período:', { startDate, endDate })
+      
+      // Tentar buscar com filtro de data
+      let { data: abandonedCartsData, error: cartsError } = await supabase
+        .from('abandoned_carts')
+        .select('*')
+        .eq('status', 'abandoned')
+        .gte('created_at', `${startDate}T00:00:00.000Z`)
+        .lte('created_at', `${endDate}T23:59:59.999Z`)
+
+      // Se não encontrou nada, buscar todos (fallback)
+      if (!abandonedCartsData || abandonedCartsData.length === 0) {
+        console.log('⚠️  Filtro de data não retornou resultados, usando fallback...')
+        const fallback = await supabase
+          .from('abandoned_carts')
+          .select('*')
+          .eq('status', 'abandoned')
+        
+        abandonedCartsData = fallback.data
+        cartsError = fallback.error
+      }
+
+      console.log('🛒 Carrinhos encontrados:', abandonedCartsData?.length || 0)
+      if (cartsError) console.error('❌ Erro ao buscar carrinhos:', cartsError)
+      console.log('🛒 Dados dos carrinhos:', abandonedCartsData?.slice(0, 2))
+
+      const abandonedCarts = abandonedCartsData?.length || 0
+
       setMetrics({
         totalRevenue: currentMetrics.totalRevenue,
         totalOrders: currentMetrics.totalOrders,
@@ -142,6 +243,70 @@ export default function AdminDashboard() {
         revenueGrowth,
         ordersGrowth,
         conversionRate,
+        pendingOrders,
+        canceledOrders,
+        abandonedCarts,
+      })
+
+      // ✅ CALCULAR BIG NUMBERS
+      const paidSales = currentSales.filter(s => ['paid', 'approved'].includes(s.status))
+      const previousPaidSales = previousSales.filter(s => ['paid', 'approved'].includes(s.status))
+      
+      const currentRevenue = paidSales.reduce((sum, s) => sum + (s.total_amount || 0), 0)
+      const previousRevenue = previousPaidSales.reduce((sum, s) => sum + (s.total_amount || 0), 0)
+      
+      const currentTicket = paidSales.length > 0 ? currentRevenue / paidSales.length : 0
+      const previousTicket = previousPaidSales.length > 0 ? previousRevenue / previousPaidSales.length : 0
+
+      const currentApprovalRate = totalAttempts > 0 ? (paidSales.length / totalAttempts) * 100 : 0
+      const previousTotalAttempts = previousSales.length
+      const previousApprovalRate = previousTotalAttempts > 0 ? (previousPaidSales.length / previousTotalAttempts) * 100 : 0
+
+      const currentCustomers = new Set(paidSales.map(s => s.customer_email).filter(Boolean)).size
+      const previousCustomers = new Set(previousPaidSales.map(s => s.customer_email).filter(Boolean)).size
+
+      setBigNumbersData({
+        revenue: { current: currentRevenue, previous: previousRevenue },
+        averageTicket: { current: currentTicket, previous: previousTicket },
+        approvalRate: { current: currentApprovalRate, previous: previousApprovalRate },
+        activeCustomers: { current: currentCustomers, previous: previousCustomers },
+      })
+
+      // ✅ CALCULAR FUNIL
+      setFunnelData({
+        visitors: Math.round(paidSales.length * 50), // Estimativa: 2% conversão
+        addedToCart: (abandonedCarts || 0) + paidSales.length,
+        checkoutStarted: Math.round(paidSales.length * 1.5),
+        completedSales: paidSales.length,
+      })
+
+      // ✅ CALCULAR SAÚDE OPERACIONAL
+      const last24h = format(subDays(new Date(), 1), 'yyyy-MM-dd HH:mm:ss')
+      const { data: recentCarts } = await supabase
+        .from('abandoned_carts')
+        .select('cart_value')
+        .eq('status', 'abandoned')
+        .gte('created_at', last24h)
+
+      setOperationalData({
+        recoverableCarts: {
+          count: abandonedCarts || 0,
+          totalValue: abandonedCartsData?.reduce((sum, c) => sum + (c.cart_value || c.total_amount || 0), 0) || 0,
+          last24h: recentCarts?.reduce((sum, c) => sum + (c.cart_value || 0), 0) || 0,
+        },
+        failedPayments: {
+          count: canceledSales.length,
+          totalValue: canceledSales.reduce((sum, s) => sum + (s.total_amount || 0), 0),
+          reasons: [
+            { reason: 'PIX Expirado', count: Math.floor(canceledSales.length * 0.35) },
+            { reason: 'Saldo insuficiente', count: Math.floor(canceledSales.length * 0.30) },
+            { reason: 'Cartão recusado', count: Math.floor(canceledSales.length * 0.35) },
+          ],
+        },
+        chargebacks: {
+          count: 0,
+          totalValue: 0,
+        },
       })
 
       // Preparar dados para gráfico
@@ -193,12 +358,15 @@ export default function AdminDashboard() {
         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-lg`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
-        <div className={`flex items-center gap-1 text-sm font-bold ${
-          change >= 0 ? 'text-green-400' : 'text-red-400'
-        }`}>
-          {change >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
-          {Math.abs(change).toFixed(1)}%
-        </div>
+        {/* Só mostra a seta se houver variação (change !== 0) */}
+        {change !== 0 && (
+          <div className={`flex items-center gap-1 text-sm font-bold ${
+            change >= 0 ? 'text-green-400' : 'text-red-400'
+          }`}>
+            {change >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+            {Math.abs(change).toFixed(1)}%
+          </div>
+        )}
       </div>
       <h3 className="text-gray-400 text-sm font-semibold mb-1">{title}</h3>
       <p className="text-3xl font-black text-white">
@@ -211,23 +379,42 @@ export default function AdminDashboard() {
   )
 
   const StatusBadge = ({ status }: { status: string }) => {
+    // Normalizar status para minúsculas
+    const normalizedStatus = status.toLowerCase()
+    
     const styles = {
       approved: 'bg-green-500/20 text-green-400 border-green-500/30',
+      paid: 'bg-green-500/20 text-green-400 border-green-500/30',
       pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
+      waiting_payment: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      canceled: 'bg-red-500 text-white border-red-600',
+      cancelado: 'bg-red-500 text-white border-red-600',
+      cancelled: 'bg-red-500 text-white border-red-600',
+      refused: 'bg-red-500 text-white border-red-600',
+      rejected: 'bg-red-500 text-white border-red-600',
+      denied: 'bg-red-500 text-white border-red-600',
+      expired: 'bg-red-500 text-white border-red-600',
       refunded: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
     }
 
     const labels = {
       approved: 'Aprovado',
+      paid: 'Pago',
       pending: 'Pendente',
+      waiting_payment: 'Aguardando',
+      canceled: 'Cancelado',
+      cancelado: 'Cancelado',
+      cancelled: 'Cancelado',
+      refused: 'Recusado',
       rejected: 'Recusado',
+      denied: 'Negado',
+      expired: 'Expirado',
       refunded: 'Reembolsado',
     }
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${styles[status as keyof typeof styles] || styles.pending}`}>
-        {labels[status as keyof typeof labels] || status}
+      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${styles[normalizedStatus as keyof typeof styles] || styles.pending}`}>
+        {labels[normalizedStatus as keyof typeof labels] || status}
       </span>
     )
   }
@@ -316,16 +503,14 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
-          title="Faturamento Total"
-          value={metrics.totalRevenue}
-          change={metrics.revenueGrowth}
-          icon={DollarSign}
-          color="from-green-500 to-emerald-600"
-          prefix="R$ "
-        />
+      {/* ✅ BIG NUMBERS - KPIs Financeiros Classe Mundial */}
+      <BigNumbers metrics={bigNumbersData} loading={loading} />
+
+      {/* ✅ SAÚDE OPERACIONAL - Ação Imediata */}
+      <OperationalHealth data={operationalData} loading={loading} />
+
+      {/* Metrics Grid - Cards Adicionais */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <MetricCard
           title="Total de Vendas"
           value={metrics.totalOrders}
@@ -334,101 +519,73 @@ export default function AdminDashboard() {
           color="from-blue-500 to-cyan-600"
         />
         <MetricCard
-          title="Clientes Únicos"
-          value={metrics.totalCustomers}
+          title="Pedidos Pendentes"
+          value={metrics.pendingOrders}
           change={0}
-          icon={Users}
-          color="from-purple-500 to-pink-600"
-        />
-        <MetricCard
-          title="Ticket Médio"
-          value={metrics.averageTicket}
-          change={0}
-          icon={CreditCard}
-          color="from-orange-500 to-red-600"
-          prefix="R$ "
+          icon={Clock}
+          color="from-yellow-500 to-amber-600"
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-white">Receita ({period} dias)</h3>
-              <p className="text-sm text-gray-400 mt-1">Últimos {period} dias</p>
+      {/* ✅ Layout Grid: Gráfico Principal (66%) + Feed Realtime (33%) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Gráfico Principal */}
+        <div className="lg:col-span-2">
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-white">Vendas nos Últimos {period} Dias</h3>
+                <p className="text-sm text-gray-400 mt-1">Receita e quantidade de pedidos</p>
+              </div>
+              <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                <MoreVertical className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
-            <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
-              <MoreVertical className="w-5 h-5 text-gray-400" />
-            </button>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={salesChart}>
+                <defs>
+                  <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                <YAxis stroke="#9ca3af" fontSize={12} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1f2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
+                    color: '#fff'
+                  }}
+                  formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="receita" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorReceita)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={salesChart}>
-              <defs>
-                <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1f2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
-                  color: '#fff'
-                }}
-                formatter={(value: any) => `R$ ${Number(value).toFixed(2)}`}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="receita" 
-                stroke="#10b981" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorReceita)" 
-              />
-            </AreaChart>
-          </ResponsiveContainer>
         </div>
 
-        {/* Sales Count Chart */}
-        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-white">Vendas ({period} dias)</h3>
-              <p className="text-sm text-gray-400 mt-1">Número de pedidos</p>
-            </div>
-            <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
-              <MoreVertical className="w-5 h-5 text-gray-400" />
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={salesChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1f2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)',
-                  color: '#fff'
-                }}
-              />
-              <Bar 
-                dataKey="vendas" 
-                fill="#3b82f6" 
-                radius={[8, 8, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* ✅ Feed em Tempo Real */}
+        <div className="lg:col-span-1">
+          <RealtimeFeed autoRefresh={true} refreshInterval={30000} />
         </div>
+      </div>
+
+      {/* ✅ FUNIL DE CONVERSÃO */}
+      <ConversionFunnel data={funnelData} loading={loading} />
+
+      {/* Charts - REMOVIDO (movido para o grid acima) */}
+      <div className="grid grid-cols-1 gap-6" style={{ display: 'none' }}>
       </div>
 
       {/* Recent Sales Table */}

@@ -1,0 +1,91 @@
+✅ AJUSTES APLICADOS - DASHBOARD DARK THEME
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎨 TEMA DARK APLICADO EM:
+
+✅ BigNumbers.tsx
+   - Fundo: bg-gray-800/50 backdrop-blur-sm
+   - Borda: border-gray-700/50
+   - Texto: text-white / text-gray-400
+   - Loading skeleton: bg-gray-700
+
+✅ ConversionFunnel.tsx
+   - Fundo: bg-gray-800/50 backdrop-blur-sm
+   - Textos: text-white / text-gray-300
+   - Barra de progresso: bg-gray-700/50
+   - Alerta: bg-red-900/20 border-red-800/50
+
+✅ OperationalHealth.tsx
+   - Fundo: bg-gray-800/50 backdrop-blur-sm
+   - Títulos: text-white
+   - Cards: border-gray-700/50
+   - Destaques: bg-yellow-900/30, bg-red-900/30, bg-orange-900/30
+
+✅ RealtimeFeed.tsx
+   - Fundo: bg-gray-800/50 backdrop-blur-sm
+   - Textos: text-white / text-gray-200
+   - Eventos: 
+     - Vendas: bg-green-900/20 border-green-800/50
+     - Carrinhos: bg-yellow-900/20 border-yellow-800/50
+     - Recusas: bg-red-900/20 border-red-800/50
+     - Visitas: bg-blue-900/20 border-blue-800/50
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 BUG FIX - ATIVIDADE RECENTE:
+
+❌ PROBLEMA:
+   API retornando erro 500: "createClient is not a function"
+
+✅ SOLUÇÃO:
+   Arquivo: app/api/dashboard/realtime-events/route.ts
+   
+   ANTES:
+   import { createClient } from '@/lib/supabase'
+   const supabase = createClient()
+   
+   DEPOIS:
+   import { supabase } from '@/lib/supabase'
+   (usa a instância já criada)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 O QUE A ATIVIDADE RECENTE MOSTRA:
+
+A API busca automaticamente:
+
+✅ Últimas 10 Vendas (status: paid, approved)
+   → Mostra: "João Silva realizou uma compra - R$ 450"
+
+✅ Últimos 5 Carrinhos Abandonados (últimas 24h)
+   → Mostra: "Maria abandonou um carrinho - R$ 320"
+
+✅ Últimos 5 Pagamentos Falhados
+   → Mostra: "Pagamento de Pedro foi recusado - R$ 150"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 AUTO-ATUALIZAÇÃO:
+
+⏱️  Intervalo: 30 segundos
+🎛️  Controle: Botão "Pausar/Retomar" no rodapé do feed
+🔴 Indicador: Bolinha verde pulsando = "Ao vivo"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 TESTE AGORA:
+
+1. Acesse: http://localhost:3000/admin/dashboard
+2. Veja os componentes com tema dark
+3. Aguarde 30s ou force atualização
+4. Verifique "Atividade Recente" no canto direito
+
+Se ainda não aparecer eventos:
+→ Significa que não há vendas/carrinhos no período
+→ Faça uma venda teste no checkout
+→ Aguarde 30s e veja aparecer no feed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ TODAS AS CORES AGORA ESTÃO EM DARK MODE!

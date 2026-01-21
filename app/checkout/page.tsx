@@ -457,8 +457,24 @@ export default function CheckoutPage() {
 
   // 🎯 CARRINHO ABANDONADO: Salva automaticamente quando usuário preenche dados
   const handleSaveAbandonedCart = async () => {
-    // Só salva se tiver pelo menos email preenchido
-    if (!formData.email || formData.email.length < 5) return
+    // ✅ Salva com QUALQUER dado preenchido (mesmo parcial)
+    const hasAnyData = formData.name || formData.email || formData.phone || formData.cpf
+    
+    if (!hasAnyData) {
+      console.log('⚠️ Nenhum dado preenchido ainda, não salvando carrinho')
+      return
+    }
+
+    // Gerar email temporário se não tiver (para não violar constraint)
+    const sessionId = sessionStorage.getItem('session_id') || `session_${Date.now()}`
+    const emailToSave = formData.email || `carrinho_${sessionId}@temp.local`
+
+    console.log('💾 Salvando carrinho abandonado...', {
+      name: formData.name,
+      email: emailToSave,
+      phone: formData.phone,
+      cpf: formData.cpf
+    })
 
     const selectedBumpProducts = selectedOrderBumps.map(index => ({
       product_id: orderBumps[index].id,
@@ -468,7 +484,7 @@ export default function CheckoutPage() {
 
     await saveAbandonedCart({
       customer_name: formData.name || undefined,
-      customer_email: formData.email,
+      customer_email: emailToSave,
       customer_phone: formData.phone || undefined,
       customer_cpf: formData.cpf || undefined,
       step: currentStep === 1 ? 'form_filled' : currentStep === 3 ? 'payment_started' : 'form_filled',
@@ -720,6 +736,7 @@ export default function CheckoutPage() {
                         autoComplete="name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        onBlur={handleSaveAbandonedCart}
                         className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                         placeholder="Dr. João Silva"
                         required
@@ -771,6 +788,7 @@ export default function CheckoutPage() {
                           autoComplete="off"
                           value={formData.cpf}
                           onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
+                          onBlur={handleSaveAbandonedCart}
                           className="w-full max-w-full px-3 sm:px-4 py-2.5 sm:py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors text-sm md:text-base box-border"
                           placeholder="000.000.000-00"
                           maxLength={14}
