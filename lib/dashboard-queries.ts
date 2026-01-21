@@ -73,7 +73,7 @@ export async function fetchCustomersWithMetrics(
         *,
         sales:sales!customer_id (
           id,
-          amount_total,
+          total_amount,
           status,
           created_at
         )
@@ -92,7 +92,7 @@ export async function fetchCustomersWithMetrics(
     const customersWithMetrics = customers?.map(customer => {
       const sales = customer.sales || []
       const totalOrders = sales.length
-      const totalSpent = sales.reduce((sum: number, sale: any) => sum + (sale.amount_total || 0), 0)
+      const totalSpent = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0)
       const lastPurchase = sales.length > 0 
         ? new Date(Math.max(...sales.map((s: any) => new Date(s.created_at).getTime())))
         : null

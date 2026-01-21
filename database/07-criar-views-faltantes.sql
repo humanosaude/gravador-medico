@@ -9,7 +9,7 @@ SELECT
     c.email,
     c.name,
     COUNT(DISTINCT s.id) as total_orders,
-    COALESCE(SUM(s.amount_total), 0) as total_spent,
+    COALESCE(SUM(s.total_amount), 0) as total_spent,
     MAX(s.created_at) as last_purchase,
     MIN(s.created_at) as first_purchase
 FROM public.customers c
