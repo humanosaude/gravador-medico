@@ -23,6 +23,7 @@ import {
 interface Sale {
   id: string
   appmax_order_id: string
+  sale_id?: string | null
   customer_name: string
   customer_email: string
   customer_phone?: string
@@ -35,6 +36,7 @@ interface Sale {
   utm_source?: string
   utm_medium?: string
   utm_campaign?: string
+  source?: 'sale' | 'attempt'
 }
 
 type StatusFilter = 'all' | 'paid' | 'pending' | 'failed' | 'refunded'
@@ -130,7 +132,7 @@ export default function SalesPage() {
   const getStatusConfig = (status: string, failureReason?: string) => {
     const normalizedStatus = status.toLowerCase()
     
-    if (['canceled', 'cancelado', 'refused', 'failed', 'denied', 'expired'].includes(normalizedStatus)) {
+    if (['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'expired', 'chargeback'].includes(normalizedStatus)) {
       return {
         label: failureReason || 'Cancelado',
         className: 'bg-red-500 text-white border-red-600 font-semibold',
@@ -177,8 +179,14 @@ export default function SalesPage() {
   }
 
   const handleRefund = async (sale: Sale) => {
+    const saleId = sale.sale_id || (sale.source === 'sale' ? sale.id : null)
+    if (!saleId) {
+      alert('Este pedido nao possui venda confirmada para estorno.')
+      return
+    }
+
     if (!confirm(`Estornar R$ ${sale.total_amount.toFixed(2)}?\n\nIRREVERSÍVEL.`)) return
-    const result = await refundOrder(sale.id, sale.appmax_order_id)
+    const result = await refundOrder(saleId, sale.appmax_order_id)
     if (result.success) {
       alert(result.message)
       loadSales()
@@ -422,7 +430,7 @@ export default function SalesPage() {
                       Ver na AppMax
                     </button>
                   )}
-                  {['paid', 'approved'].includes(selectedSale.status) && (
+                  {['paid', 'approved'].includes(selectedSale.status) && (selectedSale.sale_id || selectedSale.source === 'sale') && (
                     <button onClick={() => handleRefund(selectedSale)} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700">
                       <AlertTriangle className="w-5 h-5" />
                       Estornar

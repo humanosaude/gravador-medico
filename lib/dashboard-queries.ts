@@ -332,17 +332,62 @@ export async function fetchOperationalHealth(
     }
     const reasonMap = new Map<string, number>()
     const chargebacks = { count: 0, totalValue: 0 }
+    const normalizeReason = (value?: string) => {
+      if (!value) return 'Recusado'
+      const raw = String(value)
+      const normalized = raw
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+
+      if (['cancelado', 'cancelled', 'canceled', 'pedido cancelado'].includes(normalized)) {
+        return 'Cancelado'
+      }
+      if (
+        [
+          'recusado',
+          'refused',
+          'rejected',
+          'failed',
+          'pagamento nao autorizado',
+          'pagamento recusado',
+          'nao autorizado',
+          'pedido recusado'
+        ].includes(normalized)
+      ) {
+        return 'Recusado'
+      }
+      if (normalized.includes('boleto')) {
+        return 'Boleto vencido'
+      }
+      if (normalized.includes('pix')) {
+        return 'Pix expirado'
+      }
+      if (normalized.includes('chargeback')) {
+        return 'Chargeback'
+      }
+      if (normalized.includes('estornado') || normalized === 'refunded') {
+        return 'Estornado'
+      }
+      if (['expirado', 'expired'].includes(normalized)) {
+        return 'Expirado'
+      }
+
+      return raw
+    }
 
     for (const row of failedRows || []) {
       const amount = Number(row.total_amount || row.cart_total || 0)
       failedPayments.count += 1
       failedPayments.totalValue += Number.isFinite(amount) ? amount : 0
 
-      const reason =
+      const reason = normalizeReason(
         row.failure_reason ||
-        row?.metadata?.failure_reason ||
-        row.status ||
-        'recusado'
+          row?.metadata?.failure_reason ||
+          row.status ||
+          'recusado'
+      )
       reasonMap.set(reason, (reasonMap.get(reason) || 0) + 1)
 
       if (row.status === 'chargeback') {
