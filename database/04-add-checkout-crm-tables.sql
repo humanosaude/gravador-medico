@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS checkout_attempts (
   
   -- Status do checkout
   status TEXT NOT NULL DEFAULT 'abandoned', -- abandoned, pending, completed, failed
+  failure_reason TEXT, -- Motivo da falha (recusado, expirado, etc)
   
   -- PIX específico
   pix_code TEXT, -- Código PIX gerado

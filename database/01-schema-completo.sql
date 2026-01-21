@@ -174,6 +174,7 @@ BEGIN
       
       -- Status e pagamento
       status TEXT NOT NULL,
+      failure_reason TEXT,
       payment_method TEXT,
       payment_status TEXT,
       installments INTEGER DEFAULT 1,
@@ -218,6 +219,10 @@ BEGIN
   
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='installments') THEN
     ALTER TABLE sales ADD COLUMN installments INTEGER DEFAULT 1;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='failure_reason') THEN
+    ALTER TABLE sales ADD COLUMN failure_reason TEXT;
   END IF;
   
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sales' AND column_name='refunded_at') THEN

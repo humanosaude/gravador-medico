@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
   
   -- Status e Pagamento
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'refunded', 'cancelled')),
+  failure_reason TEXT,
   payment_method TEXT CHECK (payment_method IN ('pix', 'credit_card', 'boleto')),
   
   -- Metadata

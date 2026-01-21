@@ -156,6 +156,7 @@ async function updateCheckoutAttempt(params: {
 
   const updateData: Record<string, any> = {
     status: params.status,
+    failure_reason: params.failureReason || null,
     total_amount: params.totalAmount,
     payment_method: params.paymentMethod || null,
     recovery_status: isSuccess ? 'recovered' : isFailed ? 'abandoned' : 'pending',
@@ -185,9 +186,14 @@ async function updateCheckoutAttempt(params: {
 
     let { data, error } = await query.select('id')
 
-    if (error && error.message?.includes('total_amount')) {
+    if (error && (error.message?.includes('total_amount') || error.message?.includes('failure_reason'))) {
       const fallbackData = { ...updateData }
-      delete fallbackData.total_amount
+      if (error.message?.includes('total_amount')) {
+        delete fallbackData.total_amount
+      }
+      if (error.message?.includes('failure_reason')) {
+        delete fallbackData.failure_reason
+      }
 
       let fallbackQuery = supabaseAdmin.from('checkout_attempts').update(fallbackData)
       if (filters.appmax_order_id) {
@@ -235,6 +241,7 @@ async function updateCheckoutAttempt(params: {
       appmax_order_id: params.orderId || null,
       payment_method: params.paymentMethod || null,
       status: params.status,
+      failure_reason: params.failureReason || null,
       recovery_status: isSuccess ? 'recovered' : isFailed ? 'abandoned' : 'pending',
       converted_at: isSuccess ? now : null,
       abandoned_at: isFailed ? now : null,
@@ -246,10 +253,21 @@ async function updateCheckoutAttempt(params: {
     }
 
     let { error } = await supabaseAdmin.from('checkout_attempts').insert(insertData)
-    if (error && (error.message?.includes('total_amount') || error.message?.includes('appmax_order_id'))) {
+    if (error && (
+      error.message?.includes('total_amount') ||
+      error.message?.includes('appmax_order_id') ||
+      error.message?.includes('failure_reason')
+    )) {
       const fallbackData = { ...insertData }
-      delete fallbackData.total_amount
-      delete fallbackData.appmax_order_id
+      if (error.message?.includes('total_amount')) {
+        delete fallbackData.total_amount
+      }
+      if (error.message?.includes('appmax_order_id')) {
+        delete fallbackData.appmax_order_id
+      }
+      if (error.message?.includes('failure_reason')) {
+        delete fallbackData.failure_reason
+      }
 
       const fallbackResult = await supabaseAdmin.from('checkout_attempts').insert(fallbackData)
       error = fallbackResult.error
@@ -419,17 +437,30 @@ export async function handleAppmaxWebhook(request: NextRequest, endpoint: string
       subtotal: totalAmount,
       discount: 0,
       status,
+      failure_reason: failureReason || null,
       payment_method: paymentMethod,
       paid_at: SUCCESS_STATUSES.has(status) ? now : null,
       refunded_at: status === 'refunded' ? now : null,
       updated_at: now
     }
 
-    const { data: saleRow, error: saleError } = await supabaseAdmin
+    let { data: saleRow, error: saleError } = await supabaseAdmin
       .from('sales')
       .upsert(salePayload, { onConflict: 'appmax_order_id' })
       .select('id')
       .single()
+
+    if (saleError && saleError.message?.includes('failure_reason')) {
+      const fallbackPayload = { ...salePayload }
+      delete fallbackPayload.failure_reason
+      const fallbackResult = await supabaseAdmin
+        .from('sales')
+        .upsert(fallbackPayload, { onConflict: 'appmax_order_id' })
+        .select('id')
+        .single()
+      saleRow = fallbackResult.data
+      saleError = fallbackResult.error
+    }
 
     if (!saleError) {
       saleId = saleRow?.id || null

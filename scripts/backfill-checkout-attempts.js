@@ -120,7 +120,8 @@ async function run() {
     hasAppmaxOrderId: await hasColumn('checkout_attempts', 'appmax_order_id'),
     hasTotalAmount: await hasColumn('checkout_attempts', 'total_amount'),
     hasRecoveryStatus: await hasColumn('checkout_attempts', 'recovery_status'),
-    hasSaleId: await hasColumn('checkout_attempts', 'sale_id')
+    hasSaleId: await hasColumn('checkout_attempts', 'sale_id'),
+    hasFailureReason: await hasColumn('checkout_attempts', 'failure_reason')
   }
 
   console.log('ℹ️ Colunas disponíveis:', columns)
@@ -136,6 +137,7 @@ async function run() {
     'customer_cpf',
     'total_amount',
     'subtotal',
+    'failure_reason',
     'payment_method',
     'session_id'
   ]
@@ -218,6 +220,7 @@ async function run() {
       if (columns.hasAppmaxOrderId) row.appmax_order_id = sale.appmax_order_id
       if (columns.hasTotalAmount) row.total_amount = totalAmount
       if (columns.hasSaleId) row.sale_id = sale.id
+      if (columns.hasFailureReason) row.failure_reason = sale.failure_reason || null
       if (columns.hasRecoveryStatus) {
         row.recovery_status = recoveryStatus
         row.converted_at = SUCCESS_STATUSES.has(status) ? sale.created_at : null

@@ -56,6 +56,7 @@ export interface Sale {
   discount: number
   subtotal: number
   status: 'pending' | 'approved' | 'rejected' | 'refunded' | 'cancelled'
+  failure_reason?: string
   payment_method: 'pix' | 'credit_card' | 'boleto'
   utm_source?: string
   utm_campaign?: string

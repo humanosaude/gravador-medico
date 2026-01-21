@@ -91,6 +91,26 @@ function mapStatus(rawStatus) {
   return map[status] || 'pending'
 }
 
+function mapFailureReason(rawStatus) {
+  if (!rawStatus) return null
+  const status = String(rawStatus).toLowerCase()
+  const map = {
+    recusado: 'Pagamento recusado',
+    refused: 'Pagamento recusado',
+    rejected: 'Pagamento recusado',
+    failed: 'Pagamento recusado',
+    cancelado: 'Pedido cancelado',
+    cancelled: 'Pedido cancelado',
+    canceled: 'Pedido cancelado',
+    expirado: 'Expirado',
+    expired: 'Expirado',
+    reembolsado: 'Estornado',
+    refunded: 'Estornado',
+    chargeback: 'Chargeback'
+  }
+  return map[status] || null
+}
+
 async function fetchOrderPage(page) {
   const url = new URL(`${appmaxApiUrl}/order`)
   url.searchParams.set('page', String(page))
@@ -207,6 +227,7 @@ async function run() {
     'subtotal',
     'discount',
     'status',
+    'failure_reason',
     'payment_method',
     'installments',
     'paid_at',
@@ -260,6 +281,7 @@ async function run() {
         }
 
         const status = mapStatus(detailData?.status || order?.status)
+        const failureReason = mapFailureReason(detailData?.status || order?.status)
         const totalAmount = toNumber(detailData?.total || detailData?.full_payment_amount || detailData?.total_products)
         const subtotal = toNumber(detailData?.total_products || detailData?.total || totalAmount)
         const discount = toNumber(detailData?.discount || 0)
@@ -280,6 +302,7 @@ async function run() {
           subtotal,
           discount,
           status,
+          failure_reason: failureReason,
           payment_method: detailData?.payment_type || detailData?.payment_method || null,
           installments: detailData?.installments || null,
           paid_at: detailData?.paid_at || null,

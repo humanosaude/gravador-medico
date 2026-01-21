@@ -299,11 +299,29 @@ export async function fetchOperationalHealth(
       'chargeback'
     ]
 
-    const { data: failedRows, error: failedError } = await supabase
-      .from('checkout_attempts')
-      .select('status, total_amount, cart_total, metadata, created_at')
-      .gte('created_at', since)
-      .in('status', failedStatuses)
+    const selectWithReason = 'status, total_amount, cart_total, metadata, created_at, failure_reason'
+    let failedRows: any[] | null = null
+    let failedError: any = null
+
+    {
+      const result = await supabase
+        .from('checkout_attempts')
+        .select(selectWithReason)
+        .gte('created_at', since)
+        .in('status', failedStatuses)
+      failedRows = result.data
+      failedError = result.error
+    }
+
+    if (failedError && failedError.message?.includes('failure_reason')) {
+      const fallback = await supabase
+        .from('checkout_attempts')
+        .select('status, total_amount, cart_total, metadata, created_at')
+        .gte('created_at', since)
+        .in('status', failedStatuses)
+      failedRows = fallback.data
+      failedError = fallback.error
+    }
 
     if (failedError) throw failedError
 
@@ -320,7 +338,11 @@ export async function fetchOperationalHealth(
       failedPayments.count += 1
       failedPayments.totalValue += Number.isFinite(amount) ? amount : 0
 
-      const reason = row?.metadata?.failure_reason || row.status || 'recusado'
+      const reason =
+        row.failure_reason ||
+        row?.metadata?.failure_reason ||
+        row.status ||
+        'recusado'
       reasonMap.set(reason, (reasonMap.get(reason) || 0) + 1)
 
       if (row.status === 'chargeback') {
