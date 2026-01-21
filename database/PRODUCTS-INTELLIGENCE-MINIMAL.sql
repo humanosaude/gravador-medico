@@ -77,15 +77,20 @@ WITH recent_sales AS (
         si.price,
         si.quantity,
         s.status,
-        s.created_at
+        s.created_at,
+        p.id as product_id
     FROM 
         public.sales s
         INNER JOIN public.sales_items si ON si.sale_id = s.id
+        LEFT JOIN public.products p ON (
+            p.external_id = si.product_sku 
+            OR p.name = si.product_name
+        )
     WHERE 
         s.created_at >= CURRENT_DATE - INTERVAL '30 days'
 )
 SELECT
-    COALESCE(p.id, gen_random_uuid()) as product_id,
+    MAX(rs.product_id) as product_id,
     rs.product_name,
     COALESCE(rs.product_sku, md5(rs.product_name)) as product_sku,
     
@@ -140,12 +145,8 @@ SELECT
     
 FROM 
     recent_sales rs
-    LEFT JOIN public.products p ON (
-        p.external_id = rs.product_sku 
-        OR p.name = rs.product_name
-    )
 GROUP BY 
-    p.id, rs.product_name, rs.product_sku
+    rs.product_name, rs.product_sku
 ORDER BY 
     COUNT(CASE WHEN rs.status = 'approved' THEN 1 END) DESC;
 
