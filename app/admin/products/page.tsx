@@ -3,148 +3,202 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
-  Users, Search, Mail, Phone, Calendar, DollarSign, 
-  ShoppingBag, Filter, Download, RefreshCw, Eye, TrendingUp 
+  Package, 
+  TrendingUp, 
+  TrendingDown,
+  AlertTriangle,
+  DollarSign,
+  ShoppingCart,
+  Copy,
+  Edit,
+  Search,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { format, subDays } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { fetchCustomersWithMetrics } from '@/lib/dashboard-queries'
+import { ProductSyncButton } from '@/components/ProductSyncButton'
 
-interface Customer {
-  customer_id: string
-  name: string
-  email: string
-  phone: string | null
-  segment: string | null
-  status: string
-  total_orders: number
-  total_spent: number
-  average_order_value: number
-  last_purchase_at: string
-  first_purchase_at: string
+interface ProductPerformance {
+  total_sales: number
+  total_revenue: number
+  refund_rate: number
+  conversion_rate: number
+  health_score: number
+  unique_customers: number
+  last_sale_at: string
 }
 
-export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([])
+interface Product {
+  id: string
+  external_id: string
+  name: string
+  description?: string
+  price: number
+  image_url?: string
+  category: string
+  plan_type?: string
+  is_active: boolean
+  is_featured: boolean
+  checkout_url?: string
+  performance?: ProductPerformance
+}
+
+interface Stats {
+  total_products: number
+  active_products: number
+  total_revenue: number
+  avg_health_score: number
+}
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'total_spent' | 'total_orders' | 'last_purchase_at'>('total_spent')
-  const [filterSegment, setFilterSegment] = useState<'all' | 'vip' | 'regular' | 'new'>('all')
-  
-  // Filtros de data
-  const today = new Date()
-  const thirtyDaysAgo = subDays(today, 30)
-  const [startDate, setStartDate] = useState(format(thirtyDaysAgo, 'yyyy-MM-dd'))
-  const [endDate, setEndDate] = useState(format(today, 'yyyy-MM-dd'))
-  const [period, setPeriod] = useState(30)
-
-  // Função para definir período rápido
-  const setQuickPeriod = (days: number) => {
-    setPeriod(days)
-    const end = new Date()
-    const start = subDays(end, days)
-    setStartDate(format(start, 'yyyy-MM-dd'))
-    setEndDate(format(end, 'yyyy-MM-dd'))
-  }
+  const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    loadCustomers()
-  }, [startDate, endDate])
+    loadProducts()
+  }, [])
 
   useEffect(() => {
-    filterAndSortCustomers()
-  }, [searchTerm, sortBy, filterSegment, customers])
+    filterProducts()
+  }, [searchTerm, categoryFilter, products])
 
-  const loadCustomers = async () => {
+  const loadProducts = async () => {
     try {
-      setRefreshing(true)
-
-      console.log('📊 Carregando clientes:', { startDate, endDate })
-
-      // Usar helper de queries
-      const { data, error } = await fetchCustomersWithMetrics(
-        supabase,
-        startDate,
-        endDate
-      )
+      setLoading(true)
+      
+      // Buscar produtos
+      const { data: productsData, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('❌ Erro ao buscar clientes:', error)
+        console.error('❌ Erro ao carregar produtos:', error)
         return
       }
 
-      console.log('✅ Clientes carregados:', data?.length || 0)
-      setCustomers(data || [])
+      // Buscar performance de cada produto via view
+      const { data: performanceData } = await supabase
+        .from('product_performance')
+        .select('*')
+
+      // Combinar dados
+      const productsWithPerformance = (productsData || []).map(product => {
+        const perf = performanceData?.find(p => p.product_name === product.name)
+        return {
+          ...product,
+          performance: perf || null
+        }
+      })
+
+      setProducts(productsWithPerformance)
+      
+      // Calcular stats
+      calculateStats(productsWithPerformance)
 
     } catch (error) {
       console.error('❌ Erro:', error)
     } finally {
       setLoading(false)
-      setRefreshing(false)
     }
   }
 
-  const filterAndSortCustomers = () => {
-    let filtered = [...customers]
+  const calculateStats = (productList: Product[]) => {
+    const stats = {
+      total_products: productList.length,
+      active_products: productList.filter(p => p.is_active).length,
+      total_revenue: productList.reduce((sum, p) => sum + (p.performance?.total_revenue || 0), 0),
+      avg_health_score: productList.length 
+        ? Math.round(productList.reduce((sum, p) => sum + (p.performance?.health_score || 0), 0) / productList.length)
+        : 0
+    }
+    setStats(stats)
+  }
 
-    // Filtrar por busca
+  const filterProducts = () => {
+    let filtered = [...products]
+
     if (searchTerm) {
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.phone?.includes(searchTerm)
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
-    // Filtrar por segmento
-    if (filterSegment !== 'all') {
-      filtered = filtered.filter(c => c.segment === filterSegment)
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(p => p.category === categoryFilter)
     }
 
-    // Ordenar
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'total_spent':
-          return b.total_spent - a.total_spent
-        case 'total_orders':
-          return b.total_orders - a.total_orders
-        case 'last_purchase_at':
-          return new Date(b.last_purchase_at).getTime() - new Date(a.last_purchase_at).getTime()
-        default:
-          return 0
-      }
-    })
-
-    setFilteredCustomers(filtered)
+    setFilteredProducts(filtered)
   }
 
-  // Métricas totais
-  const totalCustomers = customers.length
-  const totalRevenue = customers.reduce((sum, c) => sum + c.total_spent, 0)
-  const avgOrderValue = customers.reduce((sum, c) => sum + c.average_order_value, 0) / (customers.length || 1)
-  const totalOrders = customers.reduce((sum, c) => sum + c.total_orders, 0)
+  const copyCheckoutLink = (url?: string) => {
+    if (!url) {
+      alert('Link não configurado')
+      return
+    }
+    navigator.clipboard.writeText(url)
+    alert('✅ Link copiado!')
+  }
 
-  // Segmentos
-  const vipCount = customers.filter(c => c.segment === 'vip').length
-  const regularCount = customers.filter(c => c.segment === 'regular').length
-  const newCount = customers.filter(c => c.segment === 'new').length
+  const toggleActive = async (productId: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: !currentStatus })
+      .eq('id', productId)
 
-  const MetricCard = ({ title, value, icon: Icon, color, prefix = '', suffix = '' }: any) => (
+    if (!error) {
+      loadProducts()
+    }
+  }
+
+  const getRefundBadgeColor = (rate: number) => {
+    if (rate < 1) return "bg-green-500/20 text-green-400 border-green-500/30"
+    if (rate < 5) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+    return "bg-red-500/20 text-red-400 border-red-500/30"
+  }
+
+  const getHealthColor = (score: number) => {
+    if (score >= 80) return "text-green-400"
+    if (score >= 50) return "text-yellow-400"
+    return "text-red-400"
+  }
+
+  // Produto com maior reembolso
+  const worstProduct = products.reduce((prev, current) => {
+    const prevRate = prev.performance?.refund_rate || 0
+    const currRate = current.performance?.refund_rate || 0
+    return currRate > prevRate ? current : prev
+  }, products[0])
+
+  // Produto mais vendido
+  const bestProduct = products.reduce((prev, current) => {
+    const prevRevenue = prev.performance?.total_revenue || 0
+    const currRevenue = current.performance?.total_revenue || 0
+    return currRevenue > prevRevenue ? current : prev
+  }, products[0])
+
+  const MetricCard = ({ title, value, icon: Icon, color, prefix = '', suffix = '', highlight = false }: any) => (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50"
+      className={`rounded-2xl shadow-xl p-6 border ${
+        highlight 
+          ? 'bg-gradient-to-br border-opacity-30' 
+          : 'bg-gray-800/50 backdrop-blur-sm border-gray-700/50'
+      } ${color}`}
     >
       <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center`}>
+        <div className={`w-12 h-12 rounded-xl ${highlight ? 'bg-white/10' : 'bg-gradient-to-br'} ${!highlight && color} flex items-center justify-center`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
         <div>
-          <p className="text-gray-400 text-sm font-medium">{title}</p>
-          <p className="text-2xl font-bold text-white">
+          <p className="text-gray-300 text-sm font-medium">{title}</p>
+          <p className={`text-2xl font-bold ${highlight ? 'text-white' : 'text-white'}`}>
             {prefix}{typeof value === 'number' ? value.toLocaleString('pt-BR', {
               minimumFractionDigits: prefix === 'R$ ' ? 2 : 0,
               maximumFractionDigits: prefix === 'R$ ' ? 2 : 0,
@@ -155,33 +209,12 @@ export default function CustomersPage() {
     </motion.div>
   )
 
-  const SegmentBadge = ({ segment }: { segment: string | null }) => {
-    const styles = {
-      vip: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-      regular: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      new: 'bg-green-500/20 text-green-400 border-green-500/30',
-    }
-
-    const labels = {
-      vip: '⭐ VIP',
-      regular: '👤 Regular',
-      new: '🆕 Novo',
-    }
-
-    const seg = segment || 'new'
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${styles[seg as keyof typeof styles]}`}>
-        {labels[seg as keyof typeof labels]}
-      </span>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400 font-medium">Carregando clientes...</p>
+          <p className="text-gray-400 font-medium">Carregando produtos...</p>
         </div>
       </div>
     )
@@ -192,79 +225,65 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white">Clientes</h1>
-          <p className="text-gray-400 mt-1">Gerencie sua base de clientes</p>
+          <h1 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            Inteligência de Produtos
+          </h1>
+          <p className="text-gray-400 mt-1">Performance e saúde financeira por SKU</p>
         </div>
-
-        <div className="flex gap-3 flex-wrap">
-          {/* Filtros Rápidos */}
-          <div className="flex gap-2 bg-gray-800 border border-gray-700 rounded-xl p-1">
-            {[7, 14, 30, 90].map((days) => (
-              <button
-                key={days}
-                onClick={() => setQuickPeriod(days)}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
-                  period === days
-                    ? 'bg-brand-500 text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {days} dias
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={loadCustomers}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 text-white transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </button>
-        </div>
+        
+        <ProductSyncButton onSyncComplete={loadProducts} />
       </div>
 
-      {/* Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Produto Mais Vendido */}
         <MetricCard
-          title="Total de Clientes"
-          value={totalCustomers}
-          icon={Users}
-          color="from-blue-500 to-cyan-600"
-        />
-        <MetricCard
-          title="Receita Total"
-          value={totalRevenue}
-          icon={DollarSign}
-          color="from-green-500 to-emerald-600"
-          prefix="R$ "
-        />
-        <MetricCard
-          title="Ticket Médio"
-          value={avgOrderValue}
-          icon={ShoppingBag}
-          color="from-orange-500 to-red-600"
-          prefix="R$ "
-        />
-        <MetricCard
-          title="Total de Pedidos"
-          value={totalOrders}
+          title="🏆 Mais Vendido"
+          value={bestProduct?.name?.substring(0, 20) || '-'}
           icon={TrendingUp}
-          color="from-purple-500 to-pink-600"
+          color="from-green-500 to-emerald-600"
+          highlight
+        />
+
+        {/* Produto com Maior Reembolso */}
+        <MetricCard
+          title="⚠️ Maior Reembolso"
+          value={`${worstProduct?.performance?.refund_rate?.toFixed(1) || '0'}%`}
+          icon={AlertTriangle}
+          color="from-red-500 to-rose-600"
+          highlight
+        />
+
+        {/* Ticket Médio Global */}
+        <MetricCard
+          title="💰 Ticket Médio"
+          value={stats?.total_revenue && stats?.total_products 
+            ? stats.total_revenue / stats.total_products 
+            : 0
+          }
+          icon={DollarSign}
+          color="from-blue-500 to-cyan-600"
+          prefix="R$ "
+        />
+
+        {/* Health Score Médio */}
+        <MetricCard
+          title="📊 Health Score"
+          value={`${stats?.avg_health_score || 0}/100`}
+          icon={Package}
+          color="from-purple-500 to-fuchsia-600"
         />
       </div>
 
-      {/* Filtros e Busca */}
+      {/* Filtros */}
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-gray-700/50">
-        <div className="flex flex-wrap gap-4">
-          {/* Busca */}
+        <div className="flex gap-4 flex-wrap">
           <div className="flex-1 min-w-[300px]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Buscar por nome, email ou telefone..."
+                placeholder="🔍 Buscar produto..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -272,98 +291,130 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          {/* Filtro Segmento */}
           <select
-            value={filterSegment}
-            onChange={(e) => setFilterSegment(e.target.value as any)}
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
             className="px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            <option value="all">Todos os Segmentos</option>
-            <option value="vip">⭐ VIP ({vipCount})</option>
-            <option value="regular">👤 Regular ({regularCount})</option>
-            <option value="new">🆕 Novo ({newCount})</option>
+            <option value="all">Todas Categorias</option>
+            <option value="subscription">Assinaturas</option>
+            <option value="one_time">Compra Única</option>
+            <option value="upsell">Upsells</option>
+            <option value="auto-detected">Auto-descobertos</option>
           </select>
-
-          {/* Ordenar por */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            <option value="total_spent">Maior Gasto</option>
-            <option value="total_orders">Mais Pedidos</option>
-            <option value="last_purchase_at">Última Compra</option>
-          </select>
-
-          <button className="flex items-center gap-2 px-4 py-3 bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-colors">
-            <Download className="w-4 h-4" />
-            Exportar
-          </button>
         </div>
       </div>
 
-      {/* Tabela de Clientes */}
+      {/* Tabela de Produtos */}
       <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700/50 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/50 border-b border-gray-700">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Cliente</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Segmento</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Total Gasto</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Pedidos</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Ticket Médio</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Última Compra</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Produto</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Preço</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Vendas (30d)</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Receita</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Taxa Reembolso</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Conversão</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Health</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Status</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredCustomers.map((customer) => (
-                <tr key={customer.customer_id} className="hover:bg-gray-700/30 transition-colors">
+              {filteredProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-700/30 transition-colors">
+                  {/* Produto */}
                   <td className="px-6 py-4">
-                    <div>
-                      <div className="font-semibold text-white">{customer.name}</div>
-                      <div className="text-sm text-gray-400 flex items-center gap-2 mt-1">
-                        <Mail className="w-3 h-3" />
-                        {customer.email}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                        <Package className="h-5 w-5 text-white" />
                       </div>
-                      {customer.phone && (
-                        <div className="text-sm text-gray-400 flex items-center gap-2 mt-1">
-                          <Phone className="w-3 h-3" />
-                          {customer.phone}
-                        </div>
-                      )}
+                      <div>
+                        <div className="font-semibold text-white">{product.name}</div>
+                        <div className="text-xs text-gray-500">{product.plan_type || product.category}</div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <SegmentBadge segment={customer.segment} />
+
+                  {/* Preço */}
+                  <td className="px-6 py-4 text-gray-300 font-medium">
+                    R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-green-400">
-                      R$ {customer.total_spent.toFixed(2)}
-                    </div>
-                  </td>
+
+                  {/* Vendas */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <ShoppingBag className="w-4 h-4 text-blue-400" />
-                      <span className="font-semibold text-white">{customer.total_orders}</span>
+                      <ShoppingCart className="h-4 w-4 text-blue-400" />
+                      <span className="text-white font-semibold">
+                        {product.performance?.total_sales || 0}
+                      </span>
                     </div>
                   </td>
+
+                  {/* Receita */}
                   <td className="px-6 py-4">
-                    <div className="text-gray-300">
-                      R$ {customer.average_order_value.toFixed(2)}
+                    <div className="text-green-400 font-bold">
+                      R$ {product.performance?.total_revenue?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                     </div>
                   </td>
+
+                  {/* Taxa de Reembolso */}
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <Calendar className="w-4 h-4" />
-                      {format(new Date(customer.last_purchase_at), 'dd/MM/yyyy', { locale: ptBR })}
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getRefundBadgeColor(product.performance?.refund_rate || 0)}`}>
+                      {product.performance?.refund_rate?.toFixed(1) || '0'}%
+                    </span>
+                  </td>
+
+                  {/* Conversão */}
+                  <td className="px-6 py-4 text-gray-300 font-medium">
+                    {product.performance?.conversion_rate?.toFixed(1) || '0'}%
+                  </td>
+
+                  {/* Health Score */}
+                  <td className="px-6 py-4">
+                    <div className={`font-bold text-lg ${getHealthColor(product.performance?.health_score || 0)}`}>
+                      {product.performance?.health_score || 0}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-brand-400 hover:text-brand-300 font-semibold text-sm transition-colors">
-                      <Eye className="w-5 h-5 inline" />
+
+                  {/* Status */}
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => toggleActive(product.id, product.is_active)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                        product.is_active 
+                          ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                          : 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+                      }`}
+                    >
+                      {product.is_active ? (
+                        <><CheckCircle2 className="w-3 h-3 inline mr-1" /> Ativo</>
+                      ) : (
+                        <><XCircle className="w-3 h-3 inline mr-1" /> Inativo</>
+                      )}
                     </button>
+                  </td>
+
+                  {/* Ações */}
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => copyCheckoutLink(product.checkout_url)}
+                        className="text-gray-400 hover:text-white transition-colors p-2"
+                        title="Copiar link do checkout"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setSelectedProduct(product)}
+                        className="text-gray-400 hover:text-white transition-colors p-2"
+                        title="Editar produto"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -371,12 +422,12 @@ export default function CustomersPage() {
           </table>
         </div>
 
-        {filteredCustomers.length === 0 && (
+        {filteredProducts.length === 0 && (
           <div className="p-12 text-center">
-            <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-white mb-2">Nenhum cliente encontrado</h3>
-            <p className="text-gray-400">
-              {searchTerm ? 'Tente ajustar os filtros de busca' : 'Aguardando primeiras vendas'}
+            <Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-white mb-2">Nenhum produto encontrado</h3>
+            <p className="text-gray-400 mb-4">
+              {searchTerm ? 'Tente ajustar os filtros de busca' : 'Clique em "Sincronizar" para descobrir produtos das vendas'}
             </p>
           </div>
         )}
