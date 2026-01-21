@@ -1,15 +1,33 @@
 # Voice Pen Pro - Dashboard Médico
 
-Plataforma profissional de gravação e transcrição médica com IA.
+Plataforma profissional de gravação e transcrição médica com IA + Sistema completo de vendas e analytics.
 
 ## 🚀 Tecnologias
 
 - **Next.js 15** (App Router)
-- **React 18**
-- **TypeScript**
-- **Tailwind CSS**
-- **Framer Motion** (Animações)
-- **Lucide Icons**
+- **React 18** + **TypeScript**
+- **Tailwind CSS** + **Framer Motion**
+- **Supabase** (Database + Auth + RLS)
+- **AppMax API** (Checkout + Webhooks)
+- **Meta Conversions API** (CAPI)
+- **Lucide Icons** + **shadcn/ui**
+
+## 📁 Estrutura do Projeto
+
+```
+gravador-medico/
+├── app/               # Next.js App Router
+│   ├── admin/         # Painel admin (12 páginas)
+│   └── api/           # API Routes
+├── components/        # 44 componentes React
+├── lib/              # Utils e helpers
+├── database/         # SQL migrations + schemas
+├── docs/             # Documentação consolidada
+├── scripts/          # Automação e deploy
+└── public/           # Assets estáticos
+```
+
+Ver [CLEANUP-REPORT.md](./CLEANUP-REPORT.md) para detalhes da estrutura.
 
 ## 📦 Instalação
 
@@ -17,11 +35,18 @@ Plataforma profissional de gravação e transcrição médica com IA.
 # Instalar dependências
 npm install
 
+# Configurar variáveis de ambiente
+cp .env.example .env.local
+# Editar .env.local com suas credenciais
+
 # Rodar em desenvolvimento
 npm run dev
 ```
 
-Acesse: `http://localhost:3000/dashboard`
+**Acessos:**
+- Site público: `http://localhost:3000`
+- Painel admin: `http://localhost:3000/admin/dashboard`
+- Login: `http://localhost:3000/login`
 
 ## 🎨 Funcionalidades Completas
 
