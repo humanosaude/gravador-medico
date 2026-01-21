@@ -38,12 +38,18 @@ export async function POST(request: NextRequest) {
       processing_time_ms: Date.now() - startTime,
     })
     
-    const orderId = payload.appmax_order_id || payload.order_id || payload.id
-    const status = payload.status || 'pending'
-    const customerEmail = payload.customer?.email || payload.email
-    const customerName = payload.customer?.name || payload.name || 'Cliente Appmax'
-    const totalAmount = Number(payload.total_amount || payload.amount || payload.value || 0)
-    const paymentMethod = payload.payment_method || payload.payment_type
+    // ✅ Appmax envia dados em payload.data
+    const data = payload.data || payload
+    const orderId = data.id || payload.appmax_order_id || payload.order_id || payload.id
+    
+    // Mapear status da Appmax para nosso sistema
+    const appmaxStatus = data.status || payload.status || 'pending'
+    const status = appmaxStatus === 'aprovado' ? 'approved' : appmaxStatus
+    
+    const customerEmail = data.customer?.email || payload.customer?.email || payload.email
+    const customerName = data.customer?.fullname || data.customer?.name || payload.customer?.name || payload.name || 'Cliente Appmax'
+    const totalAmount = Number(data.total || data.total_products || payload.total_amount || payload.amount || payload.value || 0)
+    const paymentMethod = data.payment_type || payload.payment_method || payload.payment_type
     
     // ⚠️ Se não tiver dados mínimos, apenas loga e retorna OK
     if (!orderId) {
