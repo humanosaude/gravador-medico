@@ -305,47 +305,48 @@ export async function toggleIntegration(userId: string, isActive: boolean) {
 
 export async function getTrackingStats(userId: string) {
   try {
+    // Busca links do usuário
+    const { data: userLinks } = await supabaseAdmin
+      .from('tracking_links')
+      .select('id')
+      .eq('user_id', userId);
+
+    const linkIds = userLinks?.map(l => l.id) || [];
+
     // Total de cliques
     const { count: totalClicks } = await supabaseAdmin
       .from('tracking_clicks')
       .select('id', { count: 'exact', head: true })
-      .eq('link_id', supabaseAdmin
-        .from('tracking_links')
-        .select('id')
-        .eq('user_id', userId)
-      );
+      .in('link_id', linkIds.length > 0 ? linkIds : ['']);
+
+    // Busca integração do usuário
+    const { data: integration } = await supabaseAdmin
+      .from('integrations_meta')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    const integrationId = integration?.id || '';
 
     // Total de eventos
     const { count: totalEvents } = await supabaseAdmin
       .from('tracking_events_queue')
       .select('id', { count: 'exact', head: true })
-      .eq('integration_id', supabaseAdmin
-        .from('integrations_meta')
-        .select('id')
-        .eq('user_id', userId)
-      );
+      .eq('integration_id', integrationId);
 
     // Eventos pendentes
     const { count: pendingEvents } = await supabaseAdmin
       .from('tracking_events_queue')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
-      .eq('integration_id', supabaseAdmin
-        .from('integrations_meta')
-        .select('id')
-        .eq('user_id', userId)
-      );
+      .eq('integration_id', integrationId);
 
     // Eventos com falha
     const { count: failedEvents } = await supabaseAdmin
       .from('tracking_events_queue')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'failed')
-      .eq('integration_id', supabaseAdmin
-        .from('integrations_meta')
-        .select('id')
-        .eq('user_id', userId)
-      );
+      .eq('integration_id', integrationId);
 
     // Links ativos
     const { count: activeLinks } = await supabaseAdmin
@@ -386,5 +387,42 @@ export async function getTrackingStats(userId: string) {
         conversions: 0,
       },
     };
+  }
+}
+
+// ============================================================================
+// LOGS DE EVENTOS
+// ============================================================================
+
+export async function getPixelLogs(userId: string, limit = 50) {
+  try {
+    // Busca integração do usuário
+    const { data: integration } = await supabaseAdmin
+      .from('integrations_meta')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!integration) {
+      return { success: true, logs: [] };
+    }
+
+    // Busca últimos eventos
+    const { data: logs, error } = await supabaseAdmin
+      .from('tracking_events_queue')
+      .select('*')
+      .eq('integration_id', integration.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Erro ao buscar logs:', error);
+      throw new Error('Falha ao buscar logs');
+    }
+
+    return { success: true, logs: logs || [] };
+  } catch (error) {
+    console.error('Erro em getPixelLogs:', error);
+    return { success: false, error: 'Falha ao buscar logs de eventos', logs: [] };
   }
 }

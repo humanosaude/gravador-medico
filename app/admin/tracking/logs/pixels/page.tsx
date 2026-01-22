@@ -6,7 +6,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getPixelLogs } from '@/actions/tracking';
 import { 
   Activity, 
   Search, 
@@ -35,155 +36,110 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-// Mock data - Logs de pixel
-const mockPixelLogs = [
-  {
-    id: '1',
-    timestamp: '2026-01-22 14:35:21',
-    phone: '+5511987654321',
-    customer_name: 'Dr. João Silva',
-    event_type: 'Purchase',
-    event_icon: ShoppingCart,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: 'R$ 497,00',
-    response_time: '142ms'
-  },
-  {
-    id: '2',
-    timestamp: '2026-01-22 14:32:18',
-    phone: '+5511976543210',
-    customer_name: 'Dra. Maria Santos',
-    event_type: 'InitiateCheckout',
-    event_icon: TrendingUp,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: 'R$ 497,00',
-    response_time: '98ms'
-  },
-  {
-    id: '3',
-    timestamp: '2026-01-22 14:28:45',
-    phone: '+5511965432109',
-    customer_name: 'Dr. Pedro Costa',
-    event_type: 'Contact',
-    event_icon: MessageCircle,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: null,
-    response_time: '76ms'
-  },
-  {
-    id: '4',
-    timestamp: '2026-01-22 14:25:33',
-    phone: '+5511954321098',
-    customer_name: 'Dra. Ana Oliveira',
-    event_type: 'Lead',
-    event_icon: Zap,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'failed',
-    value: null,
-    response_time: '2340ms',
-    error: 'Timeout na conexão'
-  },
-  {
-    id: '5',
-    timestamp: '2026-01-22 14:22:10',
-    phone: '+5511943210987',
-    customer_name: 'Dr. Carlos Mendes',
-    event_type: 'AddToCart',
-    event_icon: ShoppingCart,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: 'R$ 497,00',
-    response_time: '134ms'
-  },
-  {
-    id: '6',
-    timestamp: '2026-01-22 14:18:55',
-    phone: '+5511932109876',
-    customer_name: 'Dra. Beatriz Lima',
-    event_type: 'ViewContent',
-    event_icon: TrendingUp,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: null,
-    response_time: '89ms'
-  },
-  {
-    id: '7',
-    timestamp: '2026-01-22 14:15:42',
-    phone: '+5511921098765',
-    customer_name: 'Dr. Roberto Ferreira',
-    event_type: 'Contact',
-    event_icon: MessageCircle,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: null,
-    response_time: '112ms'
-  },
-  {
-    id: '8',
-    timestamp: '2026-01-22 14:12:28',
-    phone: '+5511910987654',
-    customer_name: 'Dra. Juliana Rocha',
-    event_type: 'Purchase',
-    event_icon: ShoppingCart,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: 'R$ 497,00',
-    response_time: '156ms'
-  },
-  {
-    id: '9',
-    timestamp: '2026-01-22 14:08:15',
-    phone: '+5511909876543',
-    customer_name: 'Dr. Fernando Alves',
-    event_type: 'Lead',
-    event_icon: Zap,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'pending',
-    value: null,
-    response_time: '1823ms'
-  },
-  {
-    id: '10',
-    timestamp: '2026-01-22 14:05:02',
-    phone: '+5511898765432',
-    customer_name: 'Dra. Camila Souza',
-    event_type: 'InitiateCheckout',
-    event_icon: TrendingUp,
-    platform: 'Meta (Facebook)',
-    platform_icon: Facebook,
-    status: 'success',
-    value: 'R$ 497,00',
-    response_time: '201ms'
-  }
-];
+interface PixelLog {
+  id: string;
+  created_at: string;
+  event_type: string;
+  status: 'pending' | 'success' | 'failed';
+  event_data: any;
+  error_message?: string;
+  processed_at?: string;
+}
+
+const eventIcons: Record<string, any> = {
+  Purchase: ShoppingCart,
+  InitiateCheckout: TrendingUp,
+  Contact: MessageCircle,
+  Lead: Zap,
+  AddToCart: ShoppingCart,
+  ViewContent: TrendingUp,
+  Schedule: Calendar,
+  PageView: Activity,
+};
 
 export default function PixelLogsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [logs, setLogs] = useState(mockPixelLogs);
+  const [logs, setLogs] = useState<PixelLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadLogs();
+  }, []);
+
+  const loadLogs = async () => {
+    try {
+      setIsLoading(true);
+      // TODO: Pegar userId do contexto de autenticação
+      const userId = 'temp-user-id';
+      const result = await getPixelLogs(userId, 50);
+      
+      if (result.success && result.logs) {
+        setLogs(result.logs as PixelLog[]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar logs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredLogs = logs.filter(log => 
-    log.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.phone.includes(searchTerm) ||
-    log.event_type.toLowerCase().includes(searchTerm.toLowerCase())
+    log.event_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.event_data?.phone && log.event_data.phone.includes(searchTerm))
   );
 
   const successCount = logs.filter(l => l.status === 'success').length;
   const failedCount = logs.filter(l => l.status === 'failed').length;
   const pendingCount = logs.filter(l => l.status === 'pending').length;
-  const avgResponseTime = (logs.reduce((acc, l) => acc + parseInt(l.response_time), 0) / logs.length).toFixed(0);
+  
+  // Calcula tempo médio de resposta
+  const logsWithTime = logs.filter(l => l.processed_at && l.created_at);
+  const avgResponseTime = logsWithTime.length > 0
+    ? logsWithTime.reduce((acc, l) => {
+        const created = new Date(l.created_at).getTime();
+        const processed = new Date(l.processed_at!).getTime();
+        return acc + (processed - created);
+      }, 0) / logsWithTime.length
+    : 0;
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const getResponseTime = (log: PixelLog) => {
+    if (!log.processed_at) return '-';
+    const created = new Date(log.created_at).getTime();
+    const processed = new Date(log.processed_at).getTime();
+    return `${processed - created}ms`;
+  };
+
+  // Skeleton loader
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="animate-pulse">
+            <div className="h-10 bg-zinc-800 rounded w-64 mb-2"></div>
+            <div className="h-6 bg-zinc-800 rounded w-96"></div>
+          </div>
+          <div className="h-10 w-32 bg-zinc-800 rounded animate-pulse"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-24 bg-zinc-800 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+        <div className="h-96 bg-zinc-800 rounded-lg animate-pulse"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 p-6 space-y-6">
@@ -205,7 +161,7 @@ export default function PixelLogsPage() {
             Exportar CSV
           </Button>
           <Button 
-            onClick={() => setLogs([...mockPixelLogs])}
+            onClick={loadLogs}
             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -323,8 +279,9 @@ export default function PixelLogsPage() {
               </TableHeader>
               <TableBody>
                 {filteredLogs.map((log) => {
-                  const EventIcon = log.event_icon;
-                  const PlatformIcon = log.platform_icon;
+                  const EventIcon = eventIcons[log.event_type] || Activity;
+                  const responseTime = getResponseTime(log);
+                  const responseMs = responseTime !== '-' ? parseInt(responseTime) : 0;
 
                   return (
                     <TableRow 
@@ -332,13 +289,13 @@ export default function PixelLogsPage() {
                       className="border-zinc-800 hover:bg-zinc-800/30 transition-colors"
                     >
                       <TableCell className="text-zinc-400 text-sm font-mono">
-                        {log.timestamp}
+                        {formatTimestamp(log.created_at)}
                       </TableCell>
                       <TableCell className="text-zinc-200 font-medium">
-                        {log.customer_name}
+                        {log.event_data?.customer_name || '-'}
                       </TableCell>
                       <TableCell className="text-zinc-400 text-sm font-mono">
-                        {log.phone}
+                        {log.event_data?.phone || log.event_data?.whatsapp || '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -352,8 +309,8 @@ export default function PixelLogsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <PlatformIcon className="w-4 h-4 text-blue-500" />
-                          <span className="text-zinc-400 text-sm">{log.platform}</span>
+                          <Facebook className="w-4 h-4 text-blue-500" />
+                          <span className="text-zinc-400 text-sm">Meta (Facebook)</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -377,17 +334,19 @@ export default function PixelLogsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-zinc-300 font-semibold">
-                        {log.value || '-'}
+                        {log.event_data?.value || log.event_data?.amount || '-'}
                       </TableCell>
                       <TableCell>
                         <span className={`text-sm font-mono ${
-                          parseInt(log.response_time) < 200 
+                          responseMs > 0 && responseMs < 200 
                             ? 'text-green-400' 
-                            : parseInt(log.response_time) < 1000 
+                            : responseMs >= 200 && responseMs < 1000 
                             ? 'text-yellow-400' 
-                            : 'text-red-400'
+                            : responseMs >= 1000
+                            ? 'text-red-400'
+                            : 'text-zinc-500'
                         }`}>
-                          {log.response_time}
+                          {responseTime}
                         </span>
                       </TableCell>
                     </TableRow>

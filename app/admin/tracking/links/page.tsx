@@ -189,6 +189,26 @@ export default function TrackingLinksPage() {
     }
   };
 
+  // Skeleton loader
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="animate-pulse">
+            <div className="h-10 bg-zinc-800 rounded w-64 mb-2"></div>
+            <div className="h-6 bg-zinc-800 rounded w-96"></div>
+          </div>
+          <div className="h-10 w-32 bg-zinc-800 rounded animate-pulse"></div>
+        </div>
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-48 bg-zinc-800 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
