@@ -24,7 +24,12 @@ import {
   Clock,
   MessageSquare,
   MessageCircle,
-  MousePointerClick
+  MousePointerClick,
+  Link,
+  MessageSquareDashed,
+  Footprints,
+  Activity,
+  Webhook
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 
@@ -45,6 +50,51 @@ const automationItems = [
     icon: MessageSquare, 
     label: 'WhatsApp', 
     href: '/admin/whatsapp',
+    badge: null
+  },
+]
+
+const trackingItems = [
+  { 
+    icon: LayoutDashboard, 
+    label: 'Dashboard', 
+    href: '/admin/tracking',
+    badge: null
+  },
+  { 
+    icon: Link, 
+    label: 'Links Rastreáveis', 
+    href: '/admin/tracking/links',
+    badge: null
+  },
+  { 
+    icon: MessageSquareDashed, 
+    label: 'Mensagens Rastreáveis', 
+    href: '/admin/tracking/messages',
+    badge: null
+  },
+  { 
+    icon: Footprints, 
+    label: 'Jornada de Compra', 
+    href: '/admin/tracking/journey',
+    badge: null
+  },
+  { 
+    icon: Activity, 
+    label: 'Disparos de Pixel', 
+    href: '/admin/tracking/logs/pixels',
+    badge: null
+  },
+  { 
+    icon: Webhook, 
+    label: 'Disparos de Webhook', 
+    href: '/admin/tracking/logs/webhooks',
+    badge: null
+  },
+  { 
+    icon: Settings, 
+    label: 'Configurações', 
+    href: '/admin/tracking/settings',
     badge: null
   },
 ]
@@ -87,10 +137,9 @@ const menuItems = [
     badge: null
   },
   { 
-    icon: MousePointerClick, 
     label: 'Tracking', 
-    href: '/admin/tracking',
-    badge: null
+    icon: MousePointerClick,
+    items: trackingItems
   },
   { 
     label: 'Automação', 

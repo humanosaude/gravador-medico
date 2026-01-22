@@ -194,10 +194,10 @@ export default function TrackingLinksPage() {
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-white">
             Links Rastreáveis
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-400 mt-2">
             Crie e gerencie links de rastreamento para suas campanhas
           </p>
         </div>
@@ -211,16 +211,16 @@ export default function TrackingLinksPage() {
       {/* Lista de Links */}
       {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-gray-600">Carregando links...</p>
+          <p className="text-gray-400">Carregando links...</p>
         </div>
       ) : links.length === 0 ? (
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardContent className="py-12 text-center">
             <Link2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-white mb-2">
               Nenhum link criado ainda
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-400 mb-6">
               Crie seu primeiro link rastreável para começar
             </p>
             <Button onClick={() => handleOpenModal()}>
@@ -232,19 +232,19 @@ export default function TrackingLinksPage() {
       ) : (
         <div className="grid gap-4">
           {links.map((link) => (
-            <Card key={link.id}>
+            <Card key={link.id} className="bg-gray-800/50 border-gray-700">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-white">
                       {link.campaign_name || link.slug}
                       {link.is_active ? (
-                        <Power className="w-4 h-4 text-green-600" />
+                        <Power className="w-4 h-4 text-green-400" />
                       ) : (
                         <PowerOff className="w-4 h-4 text-gray-400" />
                       )}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-gray-400">
                       /r/{link.slug}
                     </CardDescription>
                   </div>
@@ -284,8 +284,8 @@ export default function TrackingLinksPage() {
                 <div className="space-y-3">
                   {/* WhatsApp Info */}
                   <div>
-                    <p className="text-sm font-medium text-gray-700">WhatsApp:</p>
-                    <p className="text-sm text-gray-600">{link.whatsapp_number}</p>
+                    <p className="text-sm font-medium text-gray-300">WhatsApp:</p>
+                    <p className="text-sm text-gray-400">{link.whatsapp_number}</p>
                     <p className="text-sm text-gray-500 italic mt-1">
                       "{link.whatsapp_message.substring(0, 100)}..."
                     </p>
@@ -295,17 +295,17 @@ export default function TrackingLinksPage() {
                   {(link.utm_source || link.utm_medium || link.utm_campaign) && (
                     <div className="flex gap-2 flex-wrap">
                       {link.utm_source && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600/30">
                           source: {link.utm_source}
                         </span>
                       )}
                       {link.utm_medium && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                        <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-600/30">
                           medium: {link.utm_medium}
                         </span>
                       )}
                       {link.utm_campaign && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                        <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded border border-purple-600/30">
                           campaign: {link.utm_campaign}
                         </span>
                       )}
@@ -313,16 +313,16 @@ export default function TrackingLinksPage() {
                   )}
 
                   {/* Stats */}
-                  <div className="flex gap-6 pt-3 border-t">
+                  <div className="flex gap-6 pt-3 border-t border-gray-700">
                     <div className="flex items-center gap-2">
-                      <MousePointerClick className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">
+                      <MousePointerClick className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-400">
                         {(link as any).clicks?.length || 0} cliques
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">
+                      <TrendingUp className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-400">
                         0 conversões
                       </span>
                     </div>
@@ -336,12 +336,12 @@ export default function TrackingLinksPage() {
 
       {/* Modal de Criação/Edição */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-800 border-gray-700">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-white">
               {editingLink ? 'Editar Link' : 'Criar Novo Link'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               Configure seu link rastreável com mensagem personalizada do WhatsApp
             </DialogDescription>
           </DialogHeader>
@@ -373,7 +373,7 @@ export default function TrackingLinksPage() {
                     required
                     disabled={!!editingLink}
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-400 mt-1">
                     {window.location.origin}/r/{formData.slug || '...'}
                   </p>
                 </div>
@@ -395,7 +395,7 @@ export default function TrackingLinksPage() {
                 placeholder="5511999999999"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Formato: 55 + DDD + número (sem espaços ou caracteres especiais)
               </p>
             </div>
@@ -423,14 +423,14 @@ export default function TrackingLinksPage() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, destination_url: e.target.value })}
                 placeholder="https://seusite.com/oferta"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Opcional: Link alternativo para visitantes
               </p>
             </div>
 
             {/* UTM Parameters */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3">Parâmetros UTM (Opcional)</h4>
+            <div className="border-t border-gray-700 pt-4">
+              <h4 className="font-medium text-white mb-3">Parâmetros UTM (Opcional)</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="utm_source">Source</Label>

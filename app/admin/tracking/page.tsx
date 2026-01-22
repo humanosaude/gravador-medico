@@ -57,23 +57,23 @@ export default function TrackingDashboard() {
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-white">
             Rastreamento & Atribuição
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-400 mt-2">
             Módulo Tintim Killer - Rastreie cliques e atribua vendas
           </p>
         </div>
         
         <div className="flex gap-3">
           <Link href="/admin/tracking/pixels">
-            <Button variant="outline">
+            <Button variant="outline" className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700">
               <Zap className="w-4 h-4 mr-2" />
               Configurar Pixel
             </Button>
           </Link>
           <Link href="/admin/tracking/links">
-            <Button>
+            <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
               <Link2 className="w-4 h-4 mr-2" />
               Gerenciar Links
             </Button>
@@ -84,15 +84,15 @@ export default function TrackingDashboard() {
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Total de Cliques */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Total de Cliques
             </CardTitle>
-            <MousePointerClick className="w-4 h-4 text-blue-600" />
+            <MousePointerClick className="w-4 h-4 text-blue-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.totalClicks.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -102,15 +102,15 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Eventos Disparados */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Eventos Disparados
             </CardTitle>
-            <Zap className="w-4 h-4 text-green-600" />
+            <Zap className="w-4 h-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.totalEvents.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -120,15 +120,15 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Conversões */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Conversões
             </CardTitle>
-            <TrendingUp className="w-4 h-4 text-purple-600" />
+            <TrendingUp className="w-4 h-4 text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.conversions.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -138,15 +138,15 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Links Ativos */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Links Ativos
             </CardTitle>
-            <Link2 className="w-4 h-4 text-indigo-600" />
+            <Link2 className="w-4 h-4 text-indigo-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.activeLinks.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -156,15 +156,15 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Eventos Pendentes */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Eventos Pendentes
             </CardTitle>
-            <Clock className="w-4 h-4 text-orange-600" />
+            <Clock className="w-4 h-4 text-orange-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.pendingEvents.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -174,15 +174,15 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Eventos com Falha */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">
+            <CardTitle className="text-sm font-medium text-gray-400">
               Eventos com Falha
             </CardTitle>
-            <AlertCircle className="w-4 h-4 text-red-600" />
+            <AlertCircle className="w-4 h-4 text-red-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-white">
               {stats.failedEvents.toLocaleString('pt-BR')}
             </div>
             <p className="text-xs text-gray-500 mt-2">
@@ -195,45 +195,45 @@ export default function TrackingDashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Card: Como Funciona */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
-            <CardTitle>Como Funciona</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-white">Como Funciona</CardTitle>
+            <CardDescription className="text-gray-400">
               Entenda o fluxo de rastreamento
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-blue-600 font-bold text-sm">1</span>
+              <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-blue-400 font-bold text-sm">1</span>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Crie um Link Rastreável</h4>
-                <p className="text-sm text-gray-600">
+                <h4 className="font-medium text-white">Crie um Link Rastreável</h4>
+                <p className="text-sm text-gray-400">
                   Configure a mensagem do WhatsApp e parâmetros UTM
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-green-600 font-bold text-sm">2</span>
+              <div className="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-green-400 font-bold text-sm">2</span>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Compartilhe o Link</h4>
-                <p className="text-sm text-gray-600">
+                <h4 className="font-medium text-white">Compartilhe o Link</h4>
+                <p className="text-sm text-gray-400">
                   Use em anúncios, redes sociais ou e-mail marketing
                 </p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-purple-600 font-bold text-sm">3</span>
+              <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-purple-400 font-bold text-sm">3</span>
               </div>
               <div>
-                <h4 className="font-medium text-gray-900">Rastreie Conversões</h4>
-                <p className="text-sm text-gray-600">
+                <h4 className="font-medium text-white">Rastreie Conversões</h4>
+                <p className="text-sm text-gray-400">
                   Cada clique gera um código único que atribui vendas
                 </p>
               </div>
@@ -242,16 +242,16 @@ export default function TrackingDashboard() {
         </Card>
 
         {/* Card: Ações Rápidas */}
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
-            <CardTitle>Ações Rápidas</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-white">Ações Rápidas</CardTitle>
+            <CardDescription className="text-gray-400">
               Acesso direto às principais funcionalidades
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Link href="/admin/tracking/links">
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between bg-gray-700/50 border-gray-600 text-white hover:bg-gray-700">
                 <span className="flex items-center">
                   <Link2 className="w-4 h-4 mr-2" />
                   Gerenciar Links Rastreáveis
@@ -261,7 +261,7 @@ export default function TrackingDashboard() {
             </Link>
 
             <Link href="/admin/tracking/pixels">
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between bg-gray-700/50 border-gray-600 text-white hover:bg-gray-700">
                 <span className="flex items-center">
                   <Zap className="w-4 h-4 mr-2" />
                   Configurar Meta Pixel
@@ -270,11 +270,11 @@ export default function TrackingDashboard() {
               </Button>
             </Link>
 
-            <div className="pt-3 border-t">
-              <p className="text-sm text-gray-600 mb-2">
+            <div className="pt-3 border-t border-gray-700">
+              <p className="text-sm text-gray-400 mb-2">
                 Precisa de ajuda?
               </p>
-              <Button variant="ghost" className="p-0 h-auto">
+              <Button variant="ghost" className="p-0 h-auto text-purple-400 hover:text-purple-300">
                 Ver Documentação
               </Button>
             </div>

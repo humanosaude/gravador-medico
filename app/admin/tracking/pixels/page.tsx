@@ -107,22 +107,22 @@ export default function PixelsConfigPage() {
     <div className="max-w-3xl space-y-6">
       {/* Cabeçalho */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-3xl font-bold text-white">
           Configuração do Meta Pixel
         </h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-gray-400 mt-2">
           Configure a integração com o Facebook/Meta Pixel para rastreamento de conversões
         </p>
       </div>
 
       {/* Status da Integração */}
       {integration && (
-        <Card>
+        <Card className="bg-gray-800/50 border-gray-700">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Status da Integração</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-white">Status da Integração</CardTitle>
+                <CardDescription className="text-gray-400">
                   {integration.is_active ? 'Ativa e funcionando' : 'Desativada'}
                 </CardDescription>
               </div>
@@ -148,10 +148,10 @@ export default function PixelsConfigPage() {
       )}
 
       {/* Formulário de Configuração */}
-      <Card>
+      <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader>
-          <CardTitle>Credenciais do Meta</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-white">Credenciais do Meta</CardTitle>
+          <CardDescription className="text-gray-400">
             Insira as credenciais obtidas no Facebook Business Manager
           </CardDescription>
         </CardHeader>
@@ -169,7 +169,7 @@ export default function PixelsConfigPage() {
                 placeholder="123456789012345"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 ID do seu Pixel no Facebook Business Manager
               </p>
             </div>
@@ -196,7 +196,7 @@ export default function PixelsConfigPage() {
                   {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Token de acesso para a API de Conversões
               </p>
             </div>
@@ -212,7 +212,7 @@ export default function PixelsConfigPage() {
                 }
                 placeholder="TEST12345"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Código para testar eventos no Event Manager
               </p>
             </div>
@@ -226,54 +226,54 @@ export default function PixelsConfigPage() {
       </Card>
 
       {/* Instruções */}
-      <Card>
+      <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader>
-          <CardTitle>Como Obter as Credenciais</CardTitle>
+          <CardTitle className="text-white">Como Obter as Credenciais</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-blue-600 font-bold text-sm">1</span>
+            <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-400 font-bold text-sm">1</span>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900">Acesse o Business Manager</h4>
-              <p className="text-sm text-gray-600">
-                Vá para <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">business.facebook.com</a> e faça login
+              <h4 className="font-medium text-white">Acesse o Business Manager</h4>
+              <p className="text-sm text-gray-400">
+                Vá para <a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">business.facebook.com</a> e faça login
               </p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-green-600 font-bold text-sm">2</span>
+            <div className="w-8 h-8 rounded-full bg-green-600/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-green-400 font-bold text-sm">2</span>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900">Encontre seu Pixel ID</h4>
-              <p className="text-sm text-gray-600">
+              <h4 className="font-medium text-white">Encontre seu Pixel ID</h4>
+              <p className="text-sm text-gray-400">
                 Em "Gerenciador de Eventos" &gt; "Pixels", copie o ID do seu pixel
               </p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-purple-600 font-bold text-sm">3</span>
+            <div className="w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-purple-400 font-bold text-sm">3</span>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900">Gere um Access Token</h4>
-              <p className="text-sm text-gray-600">
+              <h4 className="font-medium text-white">Gere um Access Token</h4>
+              <p className="text-sm text-gray-400">
                 Em "Configurações do Sistema" &gt; "Tokens de Acesso", gere um token com permissões de ads_management
               </p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-orange-600 font-bold text-sm">4</span>
+            <div className="w-8 h-8 rounded-full bg-orange-600/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-orange-400 font-bold text-sm">4</span>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900">Ative a API de Conversões</h4>
-              <p className="text-sm text-gray-600">
+              <h4 className="font-medium text-white">Ative a API de Conversões</h4>
+              <p className="text-sm text-gray-400">
                 No Gerenciador de Eventos, vá em "Configurações" &gt; "API de Conversões" e ative
               </p>
             </div>
@@ -282,32 +282,32 @@ export default function PixelsConfigPage() {
       </Card>
 
       {/* Features */}
-      <Card>
+      <Card className="bg-gray-800/50 border-gray-700">
         <CardHeader>
-          <CardTitle>O que você pode fazer com esta integração</CardTitle>
+          <CardTitle className="text-white">O que você pode fazer com esta integração</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-700">
+            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-400">
               Rastrear cliques e visualizações de página em tempo real
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-700">
+            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-400">
               Atribuir vendas às campanhas corretas automaticamente
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-700">
+            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-400">
               Enviar eventos personalizados para otimização de campanhas
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-gray-700">
+            <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-gray-400">
               Melhorar o ROAS (Return on Ad Spend) com dados precisos
             </p>
           </div>
