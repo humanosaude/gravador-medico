@@ -14,14 +14,6 @@ interface EvolutionSyncConfig {
   instanceName: string
 }
 
-function normalizeRemoteJid(remoteJid: string, remoteJidAlt?: string | null) {
-  if (remoteJid?.endsWith('@lid') && remoteJidAlt) {
-    return remoteJidAlt
-  }
-
-  return remoteJid
-}
-
 /**
  * Busca mensagens de uma conversa específica
  */
@@ -56,41 +48,29 @@ export async function syncConversationHistory(
     }
 
     const data = await response.json()
-    const rawMessages = Array.isArray(data.messages)
-      ? data.messages
-      : (data.messages?.records || [])
+    const messages = data.messages || []
 
-    console.log(`📥 Encontradas ${rawMessages.length} mensagens`)
+    console.log(`📥 Encontradas ${messages.length} mensagens`)
 
-    if (rawMessages.length === 0) {
+    if (messages.length === 0) {
       return 0
     }
 
     // Converter para o formato do banco
-    const messagesToInsert: CreateMessageInput[] = rawMessages.map((msg: any) => {
+    const messagesToInsert: CreateMessageInput[] = messages.map((msg: any) => {
       const { content, media_url, caption, type } = extractMessageContent(
         msg.message,
         msg.messageType
       )
-      const fromMeValue = msg.key?.fromMe
-      const fromMeBoolean =
-        fromMeValue === true ||
-        fromMeValue === 'true' ||
-        fromMeValue === 1 ||
-        fromMeValue === '1'
-      const normalizedRemoteJid = normalizeRemoteJid(
-        msg.key.remoteJid,
-        msg.key.remoteJidAlt
-      )
 
       return {
         message_id: msg.key.id,
-        remote_jid: normalizedRemoteJid,
+        remote_jid: msg.key.remoteJid,
         content,
         message_type: type,
         media_url,
         caption,
-        from_me: fromMeBoolean,
+        from_me: msg.key.fromMe,
         timestamp: new Date(msg.messageTimestamp * 1000).toISOString(),
         raw_payload: msg
       }
@@ -117,12 +97,10 @@ export async function getAllChats(config: EvolutionSyncConfig) {
     const url = `${config.apiUrl}/chat/findChats/${config.instanceName}`
     
     const response = await fetch(url, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'apikey': config.apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({})
+        'apikey': config.apiKey
+      }
     })
 
     if (!response.ok) {
@@ -130,7 +108,7 @@ export async function getAllChats(config: EvolutionSyncConfig) {
     }
 
     const data = await response.json()
-    return Array.isArray(data) ? data : (data?.records || [])
+    return data || []
 
   } catch (error) {
     console.error('❌ Erro ao buscar chats:', error)
@@ -151,29 +129,19 @@ export async function syncAllConversations(
     // 1. Buscar todas as conversas
     const chats = await getAllChats(config)
     console.log(`📋 Encontrados ${chats.length} chats`)
-    const normalizedChats = new Map<string, any>()
-
-    chats.forEach((chat: any) => {
-      const normalizedRemoteJid = normalizeRemoteJid(
-        chat.remoteJid,
-        chat.lastMessage?.key?.remoteJidAlt
-      )
-      if (!normalizedChats.has(normalizedRemoteJid)) {
-        normalizedChats.set(normalizedRemoteJid, chat)
-      }
-    })
 
     let totalMessages = 0
 
     // 2. Sincronizar cada conversa
-    for (const [remoteJid, chat] of normalizedChats.entries()) {
+    for (const chat of chats) {
+      const remoteJid = chat.id
 
       // Criar/atualizar contato
       await upsertWhatsAppContact({
         remote_jid: remoteJid,
-        name: chat.name || chat.pushName,
+        name: chat.name,
         push_name: chat.pushName,
-        profile_picture_url: chat.profilePicUrl || chat.profilePictureUrl,
+        profile_picture_url: chat.profilePictureUrl,
         is_group: remoteJid.includes('@g.us')
       })
 
@@ -224,26 +192,107 @@ function extractMessageContent(message: any, messageType: string) {
     content = message.extendedTextMessage.text
     type = 'text'
   } else if (message.imageMessage) {
-    media_url = message.imageMessage.url
+    media_url =
+      message.imageMessage.url ||
+      message.imageMessage.mediaUrl ||
+      message.imageMessage.directPath
+    const imageBase64 =
+      message.imageMessage.base64 ||
+      message.imageMessage.data
+    const imageMime =
+      message.imageMessage.mimetype ||
+      message.imageMessage.mimeType
+    if (!media_url && typeof imageBase64 === 'string') {
+      media_url = imageBase64.startsWith('data:')
+        ? imageBase64
+        : imageMime
+        ? `data:${imageMime};base64,${imageBase64}`
+        : imageBase64
+    }
     caption = message.imageMessage.caption
     content = caption || '[Imagem]'
     type = 'image'
   } else if (message.videoMessage) {
-    media_url = message.videoMessage.url
+    media_url =
+      message.videoMessage.url ||
+      message.videoMessage.mediaUrl ||
+      message.videoMessage.directPath
+    const videoBase64 =
+      message.videoMessage.base64 ||
+      message.videoMessage.data
+    const videoMime =
+      message.videoMessage.mimetype ||
+      message.videoMessage.mimeType
+    if (!media_url && typeof videoBase64 === 'string') {
+      media_url = videoBase64.startsWith('data:')
+        ? videoBase64
+        : videoMime
+        ? `data:${videoMime};base64,${videoBase64}`
+        : videoBase64
+    }
     caption = message.videoMessage.caption
     content = caption || '[Vídeo]'
     type = 'video'
   } else if (message.audioMessage) {
-    media_url = message.audioMessage.url
+    media_url =
+      message.audioMessage.url ||
+      message.audioMessage.mediaUrl ||
+      message.audioMessage.directPath ||
+      message.audioMessage.audioUrl
+    const audioBase64 =
+      message.audioMessage.base64 ||
+      message.audioMessage.data
+    const audioMime =
+      message.audioMessage.mimetype ||
+      message.audioMessage.mimeType
+    if (!media_url && typeof audioBase64 === 'string') {
+      media_url = audioBase64.startsWith('data:')
+        ? audioBase64
+        : audioMime
+        ? `data:${audioMime};base64,${audioBase64}`
+        : audioBase64
+    }
     content = '[Áudio]'
     type = 'audio'
   } else if (message.documentMessage) {
-    media_url = message.documentMessage.url
+    media_url =
+      message.documentMessage.url ||
+      message.documentMessage.mediaUrl ||
+      message.documentMessage.directPath
+    const documentBase64 =
+      message.documentMessage.base64 ||
+      message.documentMessage.data
+    const documentMime =
+      message.documentMessage.mimetype ||
+      message.documentMessage.mimeType
+    if (!media_url && typeof documentBase64 === 'string') {
+      media_url = documentBase64.startsWith('data:')
+        ? documentBase64
+        : documentMime
+        ? `data:${documentMime};base64,${documentBase64}`
+        : documentBase64
+    }
     caption = message.documentMessage.caption
     content = message.documentMessage.fileName || '[Documento]'
     type = 'document'
   } else if (message.stickerMessage) {
-    media_url = message.stickerMessage.url
+    media_url =
+      message.stickerMessage.url ||
+      message.stickerMessage.mediaUrl ||
+      message.stickerMessage.directPath
+    const stickerBase64 =
+      message.stickerMessage.base64 ||
+      message.stickerMessage.data
+    const stickerMime =
+      message.stickerMessage.mimetype ||
+      message.stickerMessage.mimeType
+    if (!media_url && typeof stickerBase64 === 'string') {
+      media_url = stickerBase64.startsWith('data:')
+        ? stickerBase64
+        : stickerMime
+        ? `data:${stickerMime};base64,${stickerBase64}`
+        : stickerBase64
+    }
     content = '[Sticker]'
     type = 'sticker'
   } else if (message.locationMessage) {

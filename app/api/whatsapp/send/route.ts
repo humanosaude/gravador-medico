@@ -8,8 +8,8 @@ import { upsertWhatsAppMessage } from '@/lib/whatsapp-db'
 // ================================================================
 // Mapear status da Evolution API para nosso schema
 // ================================================================
-function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'read' | 'error' | undefined {
-  if (!evolutionStatus) return undefined
+function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'read' | 'error' {
+  if (!evolutionStatus) return 'sent'
   
   const status = evolutionStatus.toUpperCase()
   
@@ -23,7 +23,7 @@ function mapEvolutionStatus(evolutionStatus?: string): 'sent' | 'delivered' | 'r
 
 export async function POST(request: NextRequest) {
   try {
-    const { remoteJid, message } = await request.json()
+    const { remoteJid, message, quotedMessageId } = await request.json()
 
     if (!remoteJid || !message) {
       return NextResponse.json(
@@ -45,17 +45,27 @@ export async function POST(request: NextRequest) {
 
     console.log('📤 Enviando mensagem:', { remoteJid, message: message.substring(0, 50) })
 
+    const bodyPayload: Record<string, unknown> = {
+      number: remoteJid,
+      text: message,
+      delay: 1200 // Delay para parecer mais humano
+    }
+
+    if (quotedMessageId) {
+      bodyPayload.quoted = {
+        key: {
+          id: quotedMessageId
+        }
+      }
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'apikey': EVOLUTION_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        number: remoteJid,
-        text: message,
-        delay: 1200 // Delay para parecer mais humano
-      })
+      body: JSON.stringify(bodyPayload)
     })
 
     if (!response.ok) {
@@ -74,7 +84,7 @@ export async function POST(request: NextRequest) {
       console.log('💾 Salvando mensagem enviada no banco...')
       
       // Mapear status da Evolution API
-      const messageStatus = mapEvolutionStatus(data.status) || 'sent'
+      const messageStatus = data.status ? mapEvolutionStatus(data.status) : 'sent'
       
       const savedMessage = await upsertWhatsAppMessage({
         message_id: data.key.id,

@@ -243,6 +243,93 @@ export async function updateWhatsAppMessageStatus(
 }
 
 /**
+ * Atualiza conteúdo e metadata de uma mensagem existente.
+ */
+export async function updateWhatsAppMessageContent(input: {
+  id: string
+  content?: string | null
+  message_type?: WhatsAppMessage['message_type']
+  media_url?: string | null
+  caption?: string | null
+}): Promise<WhatsAppMessage> {
+  const updates: Partial<WhatsAppMessage> = {}
+
+  if (input.content !== undefined) updates.content = input.content
+  if (input.message_type !== undefined) updates.message_type = input.message_type
+  if (input.media_url !== undefined) updates.media_url = input.media_url
+  if (input.caption !== undefined) updates.caption = input.caption
+
+  const { data, error } = await supabaseAdmin
+    .from('whatsapp_messages')
+    .update(updates)
+    .eq('id', input.id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('❌ Erro ao atualizar mensagem:', error)
+    throw error
+  }
+
+  return data
+}
+
+/**
+ * Busca a última mensagem de uma conversa.
+ */
+export async function getLatestWhatsAppMessage(
+  remoteJid: string
+): Promise<WhatsAppMessage | null> {
+  const { data, error } = await supabaseAdmin
+    .from('whatsapp_messages')
+    .select('*')
+    .eq('remote_jid', remoteJid)
+    .order('timestamp', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    console.error('❌ Erro ao buscar última mensagem:', error)
+    throw error
+  }
+
+  return data?.[0] || null
+}
+
+/**
+ * Atualiza o resumo do contato (última mensagem).
+ */
+export async function updateWhatsAppContactLastMessage(input: {
+  remote_jid: string
+  last_message_content?: string | null
+  last_message_from_me?: boolean
+  last_message_timestamp?: string | null
+}): Promise<void> {
+  const updates: Record<string, unknown> = {}
+
+  if (input.last_message_content !== undefined) {
+    updates.last_message_content = input.last_message_content
+  }
+  if (input.last_message_from_me !== undefined) {
+    updates.last_message_from_me = input.last_message_from_me
+  }
+  if (input.last_message_timestamp !== undefined) {
+    updates.last_message_timestamp = input.last_message_timestamp
+  }
+
+  if (Object.keys(updates).length === 0) return
+
+  const { error } = await supabaseAdmin
+    .from('whatsapp_contacts')
+    .update(updates)
+    .eq('remote_jid', input.remote_jid)
+
+  if (error) {
+    console.error('❌ Erro ao atualizar resumo do contato:', error)
+    throw error
+  }
+}
+
+/**
  * Atualiza presenca do contato (online, visto por ultimo, digitando)
  */
 export async function updateWhatsAppContactPresence(input: {

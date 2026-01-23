@@ -7,6 +7,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import type { ChangeEvent, ClipboardEvent } from 'react'
 import { supabaseAdmin } from '@/lib/supabase'
 import {
   getWhatsAppConversations,
@@ -18,13 +19,23 @@ import type { WhatsAppConversation, WhatsAppMessage } from '@/lib/types/whatsapp
 import ChatLayout from '@/components/whatsapp/ChatLayout'
 import ContactList from '@/components/whatsapp/ContactList'
 import MessageBubble from '@/components/whatsapp/MessageBubble'
-import { Send, Search, RefreshCw, MessageSquare } from 'lucide-react'
+import { Send, Search, RefreshCw, MessageSquare, Mic, StopCircle, Trash2, Paperclip, X, Image as ImageIcon, FileText, Smile, Sticker } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useNotifications } from '@/components/NotificationProvider'
 import { useSearchParams } from 'next/navigation'
 
 type FilterType = 'all' | 'unread' | 'favorites' | 'groups'
+
+const normalizeFromMe = (value: unknown) =>
+  value === true || value === 'true' || value === 1 || value === '1'
+
+const EMOJIS = [
+  '😀', '😁', '😂', '🤣', '😊', '😍', '🥰', '😘',
+  '😎', '🤔', '😴', '😭', '😡', '👍', '🙏', '👏',
+  '🔥', '🎉', '✨', '💯', '✅', '❌', '❤️', '💚',
+  '💙', '👀', '👉', '👈', '💬', '📌', '📎', '🧡'
+]
 
 export default function WhatsAppInboxPage() {
   const [conversations, setConversations] = useState<WhatsAppConversation[]>([])
@@ -37,8 +48,27 @@ export default function WhatsAppInboxPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordedAudio, setRecordedAudio] = useState<{ blob: Blob; url: string } | null>(null)
+  const [recordingError, setRecordingError] = useState<string | null>(null)
+  const [sendingAudio, setSendingAudio] = useState(false)
+  const [replyTo, setReplyTo] = useState<WhatsAppMessage | null>(null)
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null)
+  const [pendingAttachmentPreview, setPendingAttachmentPreview] = useState<string | null>(null)
+  const [sendingMedia, setSendingMedia] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+  const [attachmentAccept, setAttachmentAccept] = useState('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const lastMessageTimestampRef = useRef<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordingStreamRef = useRef<MediaStream | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null)
+  const attachmentMenuRef = useRef<HTMLDivElement | null>(null)
   const { addNotification } = useNotifications()
   const searchParams = useSearchParams()
 
@@ -61,6 +91,9 @@ export default function WhatsAppInboxPage() {
     if (selectedRemoteJid) {
       loadMessages(selectedRemoteJid)
       markAsRead(selectedRemoteJid)
+      setReplyTo(null)
+      clearAttachment()
+      setRecordedAudio(null)
     }
   }, [selectedRemoteJid])
 
@@ -68,6 +101,38 @@ export default function WhatsAppInboxPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    lastMessageTimestampRef.current = messages[messages.length - 1]?.timestamp ?? null
+  }, [messages])
+
+  useEffect(() => {
+    return () => {
+      if (recordedAudio?.url) {
+        URL.revokeObjectURL(recordedAudio.url)
+      }
+    }
+  }, [recordedAudio?.url])
+
+  useEffect(() => {
+    return () => {
+      if (pendingAttachmentPreview) {
+        URL.revokeObjectURL(pendingAttachmentPreview)
+      }
+    }
+  }, [pendingAttachmentPreview])
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+      if (recordingStreamRef.current) {
+        recordingStreamRef.current.getTracks().forEach((track) => track.stop())
+        recordingStreamRef.current = null
+      }
+    }
+  }, [])
 
   // ================================================================
   // REALTIME: Escutar novas mensagens e atualizações de contatos
@@ -88,9 +153,25 @@ export default function WhatsAppInboxPage() {
           console.log('📩 Nova mensagem recebida via Realtime:', payload.new)
           
           const newMessage = payload.new as WhatsAppMessage
+          const fromMe = normalizeFromMe(newMessage.from_me)
           
-          // ⚠️ NOTIFICAÇÃO removida daqui - agora é feita apenas no NotificationProvider (global)
-          // Isso evita duplicatas e garante que funcione em qualquer página do admin
+          // 🔔 Criar notificação se NÃO for mensagem enviada por mim
+          if (!fromMe) {
+            const contact = conversations.find(c => c.remote_jid === newMessage.remote_jid)
+            const contactName =
+              contact?.name || contact?.push_name || newMessage.remote_jid.split('@')[0]
+
+            addNotification({
+              type: 'whatsapp_message',
+              title: contactName,
+              message: newMessage.content || '[Mídia]',
+              metadata: {
+                whatsapp_remote_jid: newMessage.remote_jid,
+                whatsapp_message_id: newMessage.id,
+                profile_picture_url: contact?.profile_picture_url
+              }
+            })
+          }
           
           // Se a mensagem pertence ao chat atual aberto
           if (newMessage.remote_jid === selectedRemoteJid) {
@@ -103,7 +184,7 @@ export default function WhatsAppInboxPage() {
                   (newMessage.message_id && msg.message_id === newMessage.message_id)
               )
               if (exists) return prev
-              if (newMessage.from_me) {
+              if (fromMe) {
                 const incomingTs = Date.parse(newMessage.timestamp)
                 let replaced = false
                 const next = prev.map((msg) => {
@@ -229,6 +310,16 @@ export default function WhatsAppInboxPage() {
             }
           }
 
+          if (updatedContact.remote_jid === selectedRemoteJid && updatedContact.last_message_timestamp) {
+            const lastTimestamp = lastMessageTimestampRef.current
+            const incomingTime = Date.parse(updatedContact.last_message_timestamp)
+            const lastTime = lastTimestamp ? Date.parse(lastTimestamp) : null
+
+            if (!Number.isNaN(incomingTime) && (!lastTime || incomingTime > lastTime)) {
+              void refreshMessagesQuietly(selectedRemoteJid)
+            }
+          }
+
         }
       )
       .on(
@@ -315,6 +406,32 @@ export default function WhatsAppInboxPage() {
     }
   }
 
+  async function refreshMessagesQuietly(remoteJid: string) {
+    try {
+      const data = await getWhatsAppMessages(remoteJid, 200)
+      setMessages((prev) => {
+        const cleaned = prev.filter(
+          (msg) =>
+            !msg.id.startsWith('optimistic-') && !msg.id.startsWith('contact-fallback-')
+        )
+        const byKey = new Map<string, WhatsAppMessage>()
+        for (const msg of cleaned) {
+          byKey.set(msg.message_id || msg.id, msg)
+        }
+        for (const msg of data) {
+          byKey.set(msg.message_id || msg.id, msg)
+        }
+        return Array.from(byKey.values()).sort((a, b) => {
+          const timeA = Date.parse(a.timestamp)
+          const timeB = Date.parse(b.timestamp)
+          return timeA - timeB
+        })
+      })
+    } catch (error) {
+      console.warn('⚠️ Falha ao atualizar mensagens em background:', error)
+    }
+  }
+
   async function markAsRead(remoteJid: string) {
     try {
       await markConversationAsRead(remoteJid)
@@ -343,6 +460,101 @@ export default function WhatsAppInboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  function updateConversationPreview(
+    remoteJid: string,
+    content: string,
+    fromMe: boolean,
+    timestamp: string
+  ) {
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.remote_jid !== remoteJid) return conv
+        const convTime = conv.last_message_timestamp
+          ? new Date(conv.last_message_timestamp).getTime()
+          : null
+        const msgTime = new Date(timestamp).getTime()
+        if (convTime && convTime !== msgTime) return conv
+        return {
+          ...conv,
+          last_message_content: content,
+          last_message_from_me: fromMe
+        }
+      })
+    )
+  }
+
+  async function startRecording() {
+    if (isRecording || sendingAudio || sending) return
+    if (recordedAudio) return
+
+    setRecordingError(null)
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setRecordingError('Gravacao nao suportada neste navegador.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordingStreamRef.current = stream
+
+      const options: MediaRecorderOptions = {}
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus'
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm'
+      }
+
+      const recorder = new MediaRecorder(stream, options)
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || 'audio/webm'
+        })
+        audioChunksRef.current = []
+        setIsRecording(false)
+
+        if (recordingStreamRef.current) {
+          recordingStreamRef.current.getTracks().forEach((track) => track.stop())
+          recordingStreamRef.current = null
+        }
+
+        if (blob.size > 0) {
+          const url = URL.createObjectURL(blob)
+          setRecordedAudio({ blob, url })
+        }
+      }
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      setIsRecording(true)
+    } catch (error) {
+      console.error('❌ Erro ao iniciar gravacao:', error)
+      setRecordingError('Nao foi possivel acessar o microfone.')
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorderRef.current) return
+    if (mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }
+
+  function discardRecording() {
+    if (recordedAudio?.url) {
+      URL.revokeObjectURL(recordedAudio.url)
+    }
+    setRecordedAudio(null)
+  }
+
   const selectedConversation = conversations.find(
     (c) => c.remote_jid === selectedRemoteJid
   )
@@ -366,9 +578,84 @@ export default function WhatsAppInboxPage() {
       : `${messages.length} mensagens`
     : ''
 
+  const recordingLocked = sending || sendingAudio || sendingMedia || (!!recordedAudio && !isRecording)
+
+  function formatPreviewText(message: WhatsAppMessage) {
+    if (message.content) return message.content
+    if (message.message_type === 'image') return '[Imagem]'
+    if (message.message_type === 'video') return '[Vídeo]'
+    if (message.message_type === 'audio') return '[Áudio]'
+    if (message.message_type === 'document') return message.caption || '[Documento]'
+    if (message.message_type === 'sticker') return '[Sticker]'
+    return '[Mensagem]'
+  }
+
+  function handleReplyMessage(message: WhatsAppMessage) {
+    if (!message.message_id) {
+      alert('Mensagem sem ID para responder.')
+      return
+    }
+    setReplyTo(message)
+  }
+
+  function setAttachment(file: File) {
+    if (pendingAttachmentPreview) {
+      URL.revokeObjectURL(pendingAttachmentPreview)
+    }
+    setPendingAttachment(file)
+
+    if (file.type.startsWith('image/')) {
+      setPendingAttachmentPreview(URL.createObjectURL(file))
+    } else {
+      setPendingAttachmentPreview(null)
+    }
+  }
+
+  function clearAttachment() {
+    if (pendingAttachmentPreview) {
+      URL.revokeObjectURL(pendingAttachmentPreview)
+    }
+    setPendingAttachment(null)
+    setPendingAttachmentPreview(null)
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      setAttachment(file)
+    }
+    event.target.value = ''
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const items = event.clipboardData?.items
+    if (!items) return
+
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile()
+        if (file) {
+          setAttachment(file)
+          event.preventDefault()
+          break
+        }
+      }
+    }
+  }
+
   // Enviar mensagem
   async function handleSendMessage() {
+    if (pendingAttachment) {
+      await handleSendMedia()
+      return
+    }
+
     if (!newMessage.trim() || !selectedRemoteJid || sending) return
+
+    if (replyTo && !replyTo.message_id) {
+      alert('Mensagem selecionada para resposta sem ID.')
+      return
+    }
 
     const messageText = newMessage.trim()
     const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -395,13 +682,243 @@ export default function WhatsAppInboxPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           remoteJid: selectedRemoteJid,
-          message: messageText
+          message: messageText,
+          quotedMessageId: replyTo?.message_id
         })
       })
 
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || 'Erro ao enviar mensagem')
+      }
+
+      const payload = await response.json()
+      const apiMessage = payload?.data
+      const messageId = apiMessage?.key?.id
+      const messageTimestamp = apiMessage?.messageTimestamp
+      const updatedTimestamp =
+        typeof messageTimestamp === 'number'
+          ? new Date(messageTimestamp * 1000).toISOString()
+          : optimisticTimestamp
+      const mediaUrl =
+        apiMessage?.message?.audioMessage?.url ||
+        apiMessage?.message?.audioMessage?.mediaUrl ||
+        apiMessage?.message?.audioMessage?.directPath
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === optimisticId
+            ? {
+                ...msg,
+                message_id: messageId || msg.message_id,
+                timestamp: updatedTimestamp,
+                media_url: mediaUrl || msg.media_url,
+                raw_payload: apiMessage || msg.raw_payload
+              }
+            : msg
+        )
+      )
+
+      console.log('✅ Mensagem enviada com sucesso')
+      setReplyTo(null)
+    } catch (error) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
+      setNewMessage(messageText)
+      console.error('❌ Erro ao enviar mensagem:', error)
+      alert('Erro ao enviar mensagem. Tente novamente.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function inferMediaType(file: File) {
+    if (file.type === 'image/webp') return 'sticker'
+    if (file.type.startsWith('image/')) return 'image'
+    if (file.type.startsWith('video/')) return 'video'
+    return 'document'
+  }
+
+  async function handleSendMedia() {
+    if (!pendingAttachment || !selectedRemoteJid || sendingMedia) return
+
+    if (pendingAttachment.type.startsWith('audio/')) {
+      alert('Para audio, use o gravador integrado.')
+      return
+    }
+
+    const mediatype = inferMediaType(pendingAttachment)
+    const caption = newMessage.trim()
+    const optimisticPreviewUrl = URL.createObjectURL(pendingAttachment)
+    const optimisticId = `optimistic-media-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`
+    const optimisticTimestamp = new Date().toISOString()
+    const messageType =
+      mediatype === 'image'
+        ? 'image'
+        : mediatype === 'video'
+        ? 'video'
+        : mediatype === 'sticker'
+        ? 'sticker'
+        : 'document'
+    const fallbackContent =
+      mediatype === 'image'
+        ? '[Imagem]'
+        : mediatype === 'video'
+        ? '[Vídeo]'
+        : mediatype === 'sticker'
+        ? '[Sticker]'
+        : pendingAttachment.name || '[Documento]'
+    const optimisticMessage: WhatsAppMessage = {
+      id: optimisticId,
+      remote_jid: selectedRemoteJid,
+      content: caption || fallbackContent,
+      message_type: messageType,
+      media_url: optimisticPreviewUrl,
+      caption: caption || undefined,
+      from_me: true,
+      timestamp: optimisticTimestamp,
+      status: 'sent',
+      created_at: optimisticTimestamp
+    }
+
+    setMessages((prev) => [...prev, optimisticMessage])
+    updateConversationPreview(
+      selectedRemoteJid,
+      optimisticMessage.content || '[Mídia]',
+      true,
+      optimisticTimestamp
+    )
+    setNewMessage('')
+    setSendingMedia(true)
+    setTimeout(() => scrollToBottom(), 0)
+
+    try {
+      const formData = new FormData()
+      formData.append('remoteJid', selectedRemoteJid)
+      formData.append('file', pendingAttachment)
+      if (caption) formData.append('caption', caption)
+      formData.append('mediatype', mediatype)
+      formData.append('mimetype', pendingAttachment.type)
+
+      const response = await fetch('/api/whatsapp/send-media', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Erro ao enviar midia')
+      }
+
+      const payload = await response.json()
+      const apiMessage = payload?.data
+      const messageId = apiMessage?.key?.id
+      const messageTimestamp = apiMessage?.messageTimestamp
+      const updatedTimestamp =
+        typeof messageTimestamp === 'number'
+          ? new Date(messageTimestamp * 1000).toISOString()
+          : optimisticTimestamp
+
+      let mediaUrl: string | undefined
+      if (mediatype === 'image') {
+        mediaUrl =
+          apiMessage?.message?.imageMessage?.url ||
+          apiMessage?.message?.imageMessage?.mediaUrl ||
+          apiMessage?.message?.imageMessage?.directPath
+      } else if (mediatype === 'video') {
+        mediaUrl =
+          apiMessage?.message?.videoMessage?.url ||
+          apiMessage?.message?.videoMessage?.mediaUrl ||
+          apiMessage?.message?.videoMessage?.directPath
+      } else if (mediatype === 'sticker') {
+        mediaUrl =
+          apiMessage?.message?.stickerMessage?.url ||
+          apiMessage?.message?.stickerMessage?.mediaUrl ||
+          apiMessage?.message?.stickerMessage?.directPath
+      } else {
+        mediaUrl =
+          apiMessage?.message?.documentMessage?.url ||
+          apiMessage?.message?.documentMessage?.mediaUrl ||
+          apiMessage?.message?.documentMessage?.directPath
+      }
+
+      if (mediaUrl && optimisticPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(optimisticPreviewUrl)
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === optimisticId
+            ? {
+                ...msg,
+                message_id: messageId || msg.message_id,
+                timestamp: updatedTimestamp,
+                media_url: mediaUrl || msg.media_url,
+                raw_payload: apiMessage || msg.raw_payload
+              }
+            : msg
+        )
+      )
+
+      updateConversationPreview(
+        selectedRemoteJid,
+        optimisticMessage.content || '[Mídia]',
+        true,
+        updatedTimestamp
+      )
+      clearAttachment()
+      setReplyTo(null)
+    } catch (error) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
+      if (optimisticPreviewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(optimisticPreviewUrl)
+      }
+      console.error('❌ Erro ao enviar midia:', error)
+      alert('Erro ao enviar midia. Tente novamente.')
+    } finally {
+      setSendingMedia(false)
+    }
+  }
+
+  async function handleSendAudio() {
+    if (!recordedAudio || !selectedRemoteJid || sendingAudio) return
+
+    const optimisticId = `optimistic-audio-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`
+    const optimisticTimestamp = new Date().toISOString()
+    const optimisticMessage: WhatsAppMessage = {
+      id: optimisticId,
+      remote_jid: selectedRemoteJid,
+      content: '[Áudio]',
+      message_type: 'audio',
+      from_me: true,
+      timestamp: optimisticTimestamp,
+      status: 'sent',
+      created_at: optimisticTimestamp
+    }
+
+    setMessages((prev) => [...prev, optimisticMessage])
+    updateConversationPreview(selectedRemoteJid, '[Áudio]', true, optimisticTimestamp)
+    setTimeout(() => scrollToBottom(), 0)
+
+    setSendingAudio(true)
+    try {
+      const formData = new FormData()
+      formData.append('remoteJid', selectedRemoteJid)
+      formData.append('file', recordedAudio.blob, 'audio.webm')
+      formData.append('encoding', 'true')
+      formData.append('delay', '1200')
+
+      const response = await fetch('/api/whatsapp/send-audio', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Erro ao enviar audio')
       }
 
       const payload = await response.json()
@@ -419,20 +936,156 @@ export default function WhatsAppInboxPage() {
             ? {
                 ...msg,
                 message_id: messageId || msg.message_id,
-                timestamp: updatedTimestamp
+                timestamp: updatedTimestamp,
+                raw_payload: apiMessage || msg.raw_payload
               }
             : msg
         )
       )
 
-      console.log('✅ Mensagem enviada com sucesso')
+      updateConversationPreview(selectedRemoteJid, '[Áudio]', true, updatedTimestamp)
+      setRecordedAudio(null)
+      setReplyTo(null)
     } catch (error) {
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      setNewMessage(messageText)
-      console.error('❌ Erro ao enviar mensagem:', error)
-      alert('Erro ao enviar mensagem. Tente novamente.')
+      console.error('❌ Erro ao enviar audio:', error)
+      alert('Erro ao enviar audio. Tente novamente.')
     } finally {
-      setSending(false)
+      setSendingAudio(false)
+    }
+  }
+
+  async function handleDeleteMessage(message: WhatsAppMessage) {
+    if (!message.message_id) {
+      alert('Mensagem sem ID para apagar.')
+      return
+    }
+
+    const confirmed = window.confirm('Apagar esta mensagem para todos?')
+    if (!confirmed) return
+
+    const previousSnapshot = { ...message }
+    const deletedContent = '[Mensagem apagada]'
+    const fromMeNormalized = normalizeFromMe(message.from_me)
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === message.id || msg.message_id === message.message_id
+          ? {
+              ...msg,
+              content: deletedContent,
+              message_type: 'text',
+              media_url: undefined,
+              caption: undefined
+            }
+          : msg
+      )
+    )
+
+    updateConversationPreview(message.remote_jid, deletedContent, fromMeNormalized, message.timestamp)
+
+    try {
+      const response = await fetch('/api/whatsapp/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: message.message_id,
+          messageDbId: message.id,
+          remoteJid: message.remote_jid,
+          fromMe: fromMeNormalized,
+          participant: message.raw_payload?.key?.participant
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Erro ao apagar mensagem')
+      }
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === message.id || msg.message_id === message.message_id
+            ? previousSnapshot
+            : msg
+        )
+      )
+      updateConversationPreview(
+        previousSnapshot.remote_jid,
+        previousSnapshot.content || '[Mídia]',
+        !!previousSnapshot.from_me,
+        previousSnapshot.timestamp
+      )
+      console.error('❌ Erro ao apagar mensagem:', error)
+      alert('Erro ao apagar mensagem. Tente novamente.')
+    }
+  }
+
+  async function handleEditMessage(message: WhatsAppMessage) {
+    if (!message.message_id) {
+      alert('Mensagem sem ID para editar.')
+      return
+    }
+
+    const currentContent = message.content || ''
+    const nextContent = window.prompt('Editar mensagem', currentContent)
+
+    if (nextContent === null) return
+
+    const trimmed = nextContent.trim()
+    if (!trimmed) {
+      alert('A mensagem nao pode ficar vazia.')
+      return
+    }
+
+    if (trimmed === currentContent) return
+
+    const previousSnapshot = { ...message }
+
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === message.id || msg.message_id === message.message_id
+          ? { ...msg, content: trimmed }
+          : msg
+      )
+    )
+
+    const fromMeNormalized = normalizeFromMe(message.from_me)
+
+    updateConversationPreview(message.remote_jid, trimmed, fromMeNormalized, message.timestamp)
+
+    try {
+      const response = await fetch('/api/whatsapp/update-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: message.message_id,
+          messageDbId: message.id,
+          remoteJid: message.remote_jid,
+          fromMe: fromMeNormalized,
+          content: trimmed
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Erro ao editar mensagem')
+      }
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === message.id || msg.message_id === message.message_id
+            ? previousSnapshot
+            : msg
+        )
+      )
+      updateConversationPreview(
+        previousSnapshot.remote_jid,
+        previousSnapshot.content || '[Mídia]',
+        !!previousSnapshot.from_me,
+        previousSnapshot.timestamp
+      )
+      console.error('❌ Erro ao editar mensagem:', error)
+      alert('Erro ao editar mensagem. Tente novamente.')
     }
   }
 
@@ -638,7 +1291,13 @@ export default function WhatsAppInboxPage() {
             ) : (
               <>
                 {messages.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} />
+                  <MessageBubble
+                    key={msg.id}
+                    message={msg}
+                    onDelete={handleDeleteMessage}
+                    onEdit={handleEditMessage}
+                    onReply={handleReplyMessage}
+                  />
                 ))}
                 <div ref={messagesEndRef} />
               </>
@@ -647,32 +1306,154 @@ export default function WhatsAppInboxPage() {
 
           {/* Input de mensagem - Estilo WhatsApp */}
           <div className="bg-[#202c33] border-t border-gray-700 px-4 py-3 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Escrever uma mensagem"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSendMessage()
-                  }
-                }}
-                disabled={sending}
-                className="flex-1 px-4 py-2 bg-[#2a3942] text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00a884] disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-500"
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={sending || !newMessage.trim()}
-                className="p-2 bg-[#00a884] text-white rounded-full hover:bg-[#00a884]/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {sending ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
-              </button>
+            <div className="flex flex-col gap-2">
+              {replyTo && (
+                <div className="flex items-center justify-between gap-3 bg-[#1f2a30] rounded-lg px-3 py-2 text-xs text-gray-200">
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-emerald-300">Respondendo</div>
+                    <div className="truncate">{formatPreviewText(replyTo)}</div>
+                  </div>
+                  <button
+                    onClick={() => setReplyTo(null)}
+                    className="p-1 rounded-full hover:bg-white/10 transition"
+                    title="Cancelar resposta"
+                  >
+                    <X className="w-4 h-4 text-gray-300" />
+                  </button>
+                </div>
+              )}
+
+              {pendingAttachment && (
+                <div className="flex items-center gap-3 bg-[#1f2a30] rounded-lg px-3 py-2">
+                  {pendingAttachmentPreview ? (
+                    <img
+                      src={pendingAttachmentPreview}
+                      alt="Preview"
+                      className="w-12 h-12 object-cover rounded-md"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-md bg-[#2a3942] flex items-center justify-center">
+                      {pendingAttachment.type.startsWith('image/') ? (
+                        <ImageIcon className="w-5 h-5 text-gray-300" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-gray-300" />
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-200 truncate">{pendingAttachment.name}</div>
+                    <div className="text-xs text-gray-400">
+                      {(pendingAttachment.size / 1024).toFixed(1)} KB
+                    </div>
+                  </div>
+                  <button
+                    onClick={clearAttachment}
+                    className="p-1 rounded-full hover:bg-white/10 transition"
+                    title="Remover anexo"
+                  >
+                    <X className="w-4 h-4 text-gray-300" />
+                  </button>
+                </div>
+              )}
+
+              {recordedAudio && (
+                <div className="flex items-center gap-2 bg-[#2a3942] rounded-lg px-3 py-2">
+                  <audio controls src={recordedAudio.url} className="flex-1" />
+                  <button
+                    onClick={handleSendAudio}
+                    disabled={sendingAudio}
+                    className="p-2 bg-[#00a884] text-white rounded-full hover:bg-[#00a884]/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Enviar audio"
+                  >
+                    {sendingAudio ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </button>
+                  <button
+                    onClick={discardRecording}
+                    disabled={sendingAudio}
+                    className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Descartar gravacao"
+                  >
+                    <Trash2 className="w-4 h-4 text-gray-300" />
+                  </button>
+                </div>
+              )}
+
+              {isRecording && (
+                <div className="flex items-center gap-2 text-xs text-red-400 px-1">
+                  <span className="animate-pulse">●</span>
+                  Gravando audio...
+                  <button
+                    onClick={stopRecording}
+                    className="ml-1 inline-flex items-center gap-1 text-gray-300 hover:text-white"
+                  >
+                    <StopCircle className="w-4 h-4" />
+                    Parar
+                  </button>
+                </div>
+              )}
+
+              {recordingError && (
+                <div className="text-xs text-red-400 px-1">{recordingError}</div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Anexar arquivo"
+                  disabled={sending || sendingMedia || isRecording}
+                >
+                  <Paperclip className="w-5 h-5 text-gray-300" />
+                </button>
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={recordingLocked}
+                  className="p-2 rounded-full hover:bg-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isRecording ? 'Parar gravacao' : 'Gravar audio'}
+                >
+                  {isRecording ? (
+                    <StopCircle className="w-5 h-5 text-red-400" />
+                  ) : (
+                    <Mic className="w-5 h-5 text-gray-300" />
+                  )}
+                </button>
+                <textarea
+                  rows={1}
+                  placeholder="Escrever uma mensagem (Enter envia, Shift/Ctrl+Enter quebra linha)"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onPaste={handlePaste}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                      e.preventDefault()
+                      handleSendMessage()
+                    }
+                  }}
+                  disabled={sending || sendingMedia || isRecording}
+                  className="flex-1 px-4 py-2 bg-[#2a3942] text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00a884] disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-500 resize-none min-h-[40px] max-h-[120px]"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={sending || sendingMedia || (!newMessage.trim() && !pendingAttachment)}
+                  className="p-2 bg-[#00a884] text-white rounded-full hover:bg-[#00a884]/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sending || sendingMedia ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
