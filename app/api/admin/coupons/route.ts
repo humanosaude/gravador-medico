@@ -27,7 +27,31 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(data, { status: 200 })
+    // Buscar uso real dos cupons da tabela sales
+    const { data: salesData } = await supabaseAdmin
+      .from('sales')
+      .select('coupon_code')
+      .not('coupon_code', 'is', null)
+      .in('status', ['paid', 'approved', 'completed'])
+
+    // Contar usos por cupom
+    const usageCounts: Record<string, number> = {}
+    if (salesData) {
+      salesData.forEach(sale => {
+        const code = sale.coupon_code?.toUpperCase()
+        if (code) {
+          usageCounts[code] = (usageCounts[code] || 0) + 1
+        }
+      })
+    }
+
+    // Atualizar os cupons com o uso real
+    const couponsWithRealUsage = data?.map(coupon => ({
+      ...coupon,
+      usage_count: usageCounts[coupon.code.toUpperCase()] || 0
+    }))
+
+    return NextResponse.json(couponsWithRealUsage, { status: 200 })
   } catch (error) {
     console.error('Erro ao buscar cupons:', error)
     return NextResponse.json(

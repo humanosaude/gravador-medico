@@ -154,15 +154,15 @@ export default function CuponsAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black text-gray-900">
+            <h1 className="text-3xl font-black text-white">
               Gerenciar Cupons 🎟️
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-400 mt-1">
               Crie e gerencie cupons de desconto para seus clientes
             </p>
           </div>
@@ -177,53 +177,53 @@ export default function CuponsAdminPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-6">
+          <Card className="p-6 bg-gray-900/50 border-gray-800">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total de Cupons</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                <p className="text-sm text-gray-400">Total de Cupons</p>
+                <p className="text-2xl font-bold text-white">{stats.total}</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-gray-900/50 border-gray-800">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
-                <Check className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <Check className="w-6 h-6 text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Cupons Ativos</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
+                <p className="text-sm text-gray-400">Cupons Ativos</p>
+                <p className="text-2xl font-bold text-white">{stats.active}</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-gray-900/50 border-gray-800">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
-                <Users className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                <Users className="w-6 h-6 text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total de Usos</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalUsage}</p>
+                <p className="text-sm text-gray-400">Total de Usos</p>
+                <p className="text-2xl font-bold text-white">{stats.totalUsage}</p>
               </div>
             </div>
           </Card>
         </div>
 
         {/* Table */}
-        <Card className="p-6">
+        <Card className="p-6 bg-gray-900/50 border-gray-800">
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-              <p className="mt-4 text-gray-600">Carregando cupons...</p>
+              <p className="mt-4 text-gray-400">Carregando cupons...</p>
             </div>
           ) : coupons.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600">Nenhum cupom cadastrado ainda.</p>
+              <p className="text-gray-400">Nenhum cupom cadastrado ainda.</p>
               <Button
                 onClick={() => handleOpenDialog()}
                 className="mt-4 bg-brand-600 hover:bg-brand-700"
@@ -234,51 +234,51 @@ export default function CuponsAdminPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Usos</TableHead>
-                  <TableHead>Expira em</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                <TableRow className="border-gray-800 hover:bg-gray-800/50">
+                  <TableHead className="text-gray-300">Código</TableHead>
+                  <TableHead className="text-gray-300">Tipo</TableHead>
+                  <TableHead className="text-gray-300">Valor</TableHead>
+                  <TableHead className="text-gray-300">Usos</TableHead>
+                  <TableHead className="text-gray-300">Expira em</TableHead>
+                  <TableHead className="text-gray-300">Status</TableHead>
+                  <TableHead className="text-right text-gray-300">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {coupons.map((coupon) => (
-                  <TableRow key={coupon.id}>
-                    <TableCell className="font-mono font-bold">
+                  <TableRow key={coupon.id} className="border-gray-800 hover:bg-gray-800/30">
+                    <TableCell className="font-mono font-bold text-white">
                       {coupon.code}
                     </TableCell>
                     <TableCell>
-                      <Badge>
+                      <Badge className="bg-gray-800 text-gray-300 border-gray-700">
                         {coupon.type === 'percent' ? 'Porcentagem' : 'Fixo'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-gray-300">
                       {coupon.type === 'percent'
                         ? `${coupon.value}%`
                         : `R$ ${coupon.value.toFixed(2)}`}
                     </TableCell>
-                    <TableCell>
-                      <span className="font-semibold">{coupon.usage_count}</span>
+                    <TableCell className="text-gray-300">
+                      <span className="font-semibold text-white">{coupon.usage_count}</span>
                       {coupon.usage_limit && (
                         <span className="text-gray-500"> / {coupon.usage_limit}</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400" />
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <Calendar className="w-4 h-4 text-gray-500" />
                         {formatDate(coupon.expiration_date)}
                       </div>
                     </TableCell>
                     <TableCell>
                       {coupon.is_active ? (
-                        <Badge className="bg-green-100 text-green-700">
+                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                           Ativo
                         </Badge>
                       ) : (
-                        <Badge className="bg-gray-100 text-gray-700">
+                        <Badge className="bg-gray-800 text-gray-400 border-gray-700">
                           Inativo
                         </Badge>
                       )}
@@ -289,6 +289,7 @@ export default function CuponsAdminPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleOpenDialog(coupon)}
+                          className="text-gray-400 hover:text-white hover:bg-gray-800"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -296,7 +297,7 @@ export default function CuponsAdminPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(coupon.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -312,12 +313,12 @@ export default function CuponsAdminPage() {
 
       {/* Dialog Criar/Editar */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-900 border-gray-800 text-white">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-white">
               {editingCoupon ? 'Editar Cupom' : 'Novo Cupom'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-400">
               {editingCoupon
                 ? 'Atualize as informações do cupom'
                 : 'Preencha os dados para criar um novo cupom'}
@@ -327,7 +328,7 @@ export default function CuponsAdminPage() {
           <div className="space-y-4">
             {/* Código */}
             <div>
-              <Label htmlFor="code">Código do Cupom *</Label>
+              <Label htmlFor="code" className="text-gray-300">Código do Cupom *</Label>
               <Input
                 id="code"
                 value={formData.code}
@@ -335,7 +336,7 @@ export default function CuponsAdminPage() {
                   setFormData({ ...formData, code: e.target.value.toUpperCase() })
                 }
                 placeholder="EX: PROMO20"
-                className="font-mono"
+                className="font-mono bg-gray-800 border-gray-700 text-white"
                 maxLength={50}
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -346,7 +347,7 @@ export default function CuponsAdminPage() {
             {/* Tipo e Valor */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="type">Tipo *</Label>
+                <Label htmlFor="type" className="text-gray-300">Tipo *</Label>
                 <select
                   id="type"
                   value={formData.type}
@@ -356,7 +357,7 @@ export default function CuponsAdminPage() {
                       type: e.target.value as 'percent' | 'fixed',
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-700 rounded-md bg-gray-800 text-white"
                 >
                   <option value="percent">Porcentagem (%)</option>
                   <option value="fixed">Valor Fixo (R$)</option>
@@ -364,7 +365,7 @@ export default function CuponsAdminPage() {
               </div>
 
               <div>
-                <Label htmlFor="value">
+                <Label htmlFor="value" className="text-gray-300">
                   Valor * ({formData.type === 'percent' ? '%' : 'R$'})
                 </Label>
                 <Input
@@ -377,13 +378,14 @@ export default function CuponsAdminPage() {
                   min="0"
                   max={formData.type === 'percent' ? 100 : undefined}
                   step="0.01"
+                  className="bg-gray-800 border-gray-700 text-white"
                 />
               </div>
             </div>
 
             {/* Valor Mínimo */}
             <div>
-              <Label htmlFor="min_order_value">Valor Mínimo do Pedido (R$)</Label>
+              <Label htmlFor="min_order_value" className="text-gray-300">Valor Mínimo do Pedido (R$)</Label>
               <Input
                 id="min_order_value"
                 type="number"
@@ -396,12 +398,13 @@ export default function CuponsAdminPage() {
                 }
                 min="0"
                 step="0.01"
+                className="bg-gray-800 border-gray-700 text-white"
               />
             </div>
 
             {/* Limite de Uso */}
             <div>
-              <Label htmlFor="usage_limit">Limite de Uso (deixe vazio para ilimitado)</Label>
+              <Label htmlFor="usage_limit" className="text-gray-300">Limite de Uso (deixe vazio para ilimitado)</Label>
               <Input
                 id="usage_limit"
                 type="number"
@@ -414,12 +417,13 @@ export default function CuponsAdminPage() {
                 }
                 min="1"
                 placeholder="Ilimitado"
+                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
               />
             </div>
 
             {/* Data de Expiração */}
             <div>
-              <Label htmlFor="expiration_date">Data de Expiração</Label>
+              <Label htmlFor="expiration_date" className="text-gray-300">Data de Expiração</Label>
               <Input
                 id="expiration_date"
                 type="datetime-local"
@@ -434,12 +438,13 @@ export default function CuponsAdminPage() {
                     expiration_date: e.target.value ? new Date(e.target.value).toISOString() : null,
                   })
                 }
+                className="bg-gray-800 border-gray-700 text-white"
               />
             </div>
 
             {/* Descrição */}
             <div>
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description" className="text-gray-300">Descrição</Label>
               <Input
                 id="description"
                 value={formData.description}
@@ -447,6 +452,7 @@ export default function CuponsAdminPage() {
                   setFormData({ ...formData, description: e.target.value })
                 }
                 placeholder="Descrição interna do cupom"
+                className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
               />
             </div>
 
@@ -461,14 +467,14 @@ export default function CuponsAdminPage() {
                 }
                 className="w-4 h-4"
               />
-              <Label htmlFor="is_active" className="cursor-pointer">
+              <Label htmlFor="is_active" className="cursor-pointer text-gray-300">
                 Cupom ativo
               </Label>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="border-gray-700 text-gray-300 hover:bg-gray-800">
               Cancelar
             </Button>
             <Button onClick={handleSave} className="bg-brand-600 hover:bg-brand-700">
