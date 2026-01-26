@@ -138,8 +138,8 @@ Relatório gerado automaticamente pelo Gravador Médico
           <p className="text-gray-400 mt-1">Acompanhe suas métricas em tempo real</p>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <RealtimeVisitors />
           <SyncAppmaxButton />
+          <RealtimeVisitors />
           <button
             onClick={loadAllData}
             disabled={refreshing}

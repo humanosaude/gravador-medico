@@ -19,9 +19,9 @@ export function SyncAppmaxButton() {
       const response = await fetch('/api/admin/sync-appmax', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           days: 45 // Últimos 45 dias (desde 15/01/2026)
         })

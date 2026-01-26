@@ -194,19 +194,16 @@ async function syncOrder(order: any) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticação (admin)
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+    // Remover auth header - já validado no middleware
+    
     if (!APPMAX_API_TOKEN) {
+      console.error('❌ APPMAX_API_TOKEN não configurado')
       return NextResponse.json({ 
         error: 'APPMAX_API_TOKEN não configurado' 
       }, { status: 500 })
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => ({}))
     const days = body.days || 45 // Últimos 45 dias por padrão (desde 15/01)
     const force = body.force || false
 

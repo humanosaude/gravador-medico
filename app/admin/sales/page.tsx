@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatBRDateTime, getUTCDayRange } from '@/lib/date-utils'
 import { refundOrder } from '@/actions/refund-order'
+import { SyncAppmaxButton } from '@/components/dashboard/SyncAppmaxButton'
 import {
   Search,
   Download,
@@ -264,6 +265,8 @@ export default function SalesPage() {
             <span className="self-center text-gray-500">até</span>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 bg-gray-900/50 border border-gray-700 text-white rounded-lg" />
           </div>
+
+          <SyncAppmaxButton />
 
           <button onClick={loadSales} disabled={loading} className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 flex items-center gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
