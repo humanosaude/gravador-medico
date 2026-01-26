@@ -1,16 +1,33 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import Image from 'next/image'
 
 export default function WhatsAppFloating() {
+  const pathname = usePathname()
   const [showBalloon, setShowBalloon] = useState(false)
+  const [showPulse, setShowPulse] = useState(true)
   const phoneNumber = '5521986451821'
   const message = encodeURIComponent(
-    'Olá! Vi o Gravador Médico e gostaria de saber mais. Pode me ajudar? 😊'
+    'Olá! Vi o Gravador Médico e gostaria de saber mais. Pode me ajudar?'
   )
 
+  // Não mostrar o WhatsApp em páginas de admin, dashboard ou login
+  const shouldHide = pathname?.startsWith('/admin') || 
+                     pathname?.startsWith('/dashboard') || 
+                     pathname?.startsWith('/login')
+
+  if (shouldHide) {
+    return null
+  }
+
   useEffect(() => {
+    // Pulso para após 5 segundos
+    const pulseTimer = setTimeout(() => {
+      setShowPulse(false)
+    }, 5000)
+
     // Ciclo de animação do balão
     // Abre após 5 segundos
     const timer1 = setTimeout(() => {
@@ -54,6 +71,7 @@ export default function WhatsAppFloating() {
     }, 40000) // Repete o ciclo completo a cada 40 segundos
 
     return () => {
+      clearTimeout(pulseTimer)
       clearTimeout(timer1)
       clearTimeout(timer2)
       clearTimeout(timer3)
@@ -100,8 +118,10 @@ export default function WhatsAppFloating() {
         className="group relative"
         aria-label="Falar no WhatsApp"
       >
-        {/* Pulso animado */}
-        <div className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
+        {/* Pulso animado - para após 5 segundos */}
+        {showPulse && (
+          <div className="absolute inset-0 rounded-full bg-green-500 animate-ping opacity-75" />
+        )}
         
         {/* Botão principal */}
         <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group-hover:scale-110">
