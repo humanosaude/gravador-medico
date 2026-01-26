@@ -50,10 +50,10 @@ async function fetchAppmaxOrders(days: number = 30) {
   url.searchParams.set('limit', '1000')
   url.searchParams.set('offset', '0')
   
-  // Filtrar por data
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-  url.searchParams.set('start_date', startDate.toISOString().split('T')[0])
+  // NÃO filtrar por data - buscar TODOS os pedidos
+  // A Appmax às vezes não respeita o filtro de data corretamente
+
+  console.log(`📡 Buscando pedidos da Appmax: ${url.toString()}`)
 
   const response = await fetch(url.toString(), {
     method: 'GET',
@@ -64,20 +64,37 @@ async function fetchAppmaxOrders(days: number = 30) {
   })
 
   if (!response.ok) {
+    const errorText = await response.text()
+    console.error('❌ Erro da API Appmax:', errorText)
     throw new Error(`Appmax API error: ${response.status} ${response.statusText}`)
   }
 
   const data = await response.json()
-  return data.data || []
+  console.log(`✅ Appmax retornou ${data.data?.length || 0} pedidos`)
+  
+  // Filtrar localmente por data (últimos X dias)
+  const startDate = new Date()
+  startDate.setDate(startDate.getDate() - days)
+  
+  const filteredOrders = (data.data || []).filter((order: any) => {
+    const orderDate = new Date(order.created_at || order.date)
+    return orderDate >= startDate
+  })
+  
+  console.log(`📅 Filtrados ${filteredOrders.length} pedidos dos últimos ${days} dias`)
+  
+  return filteredOrders
 }
 
 async function syncOrder(order: any) {
   try {
     const orderId = order.id?.toString()
     if (!orderId) {
-      console.warn('Order sem ID:', order)
-      return { success: false, error: 'Missing order ID' }
+      console.warn('⚠️ Order sem ID:', order)
+      return { success: false, error: 'Missing order ID', orderId: 'unknown' }
     }
+
+    console.log(`🔄 Sincronizando pedido ${orderId}...`)
 
     // Extrair dados do pedido
     const customer = order.customer || {}
@@ -87,7 +104,8 @@ async function syncOrder(order: any) {
     const customerCpf = customer.cpf || order.cpf || null
 
     if (!customerEmail) {
-      return { success: false, error: 'Missing customer email' }
+      console.warn(`⚠️ Pedido ${orderId} sem email`)
+      return { success: false, error: 'Missing customer email', orderId }
     }
 
     // Buscar ou criar customer
@@ -162,11 +180,12 @@ async function syncOrder(order: any) {
       .single()
 
     if (saleError) {
-      console.error('Erro ao upsert sale:', saleError)
-      return { success: false, error: saleError.message }
+      console.error(`❌ Erro ao upsert pedido ${orderId}:`, saleError)
+      return { success: false, error: saleError.message, orderId }
     }
 
-    return { success: true, saleId: saleRow?.id, orderId }
+    console.log(`✅ Pedido ${orderId} sincronizado com sucesso (${status})`)
+    return { success: true, saleId: saleRow?.id, orderId, status }
   } catch (error: any) {
     console.error('Erro ao sincronizar pedido:', error)
     return { success: false, error: error.message }
