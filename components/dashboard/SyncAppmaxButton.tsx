@@ -10,11 +10,13 @@ export function SyncAppmaxButton() {
   const [result, setResult] = useState<any>(null)
 
   const handleSync = async () => {
+    console.log('🚀 [SYNC] Iniciando sincronização Appmax...')
     try {
       setSyncing(true)
       setResult(null)
       
       toast.info('Iniciando sincronização com Appmax...')
+      console.log('📤 [SYNC] Fazendo requisição POST para /api/admin/sync-appmax')
 
       const response = await fetch('/api/admin/sync-appmax', {
         method: 'POST',
@@ -27,13 +29,17 @@ export function SyncAppmaxButton() {
         })
       })
 
+      console.log('📥 [SYNC] Response status:', response.status, response.statusText)
+      
       const data = await response.json()
+      console.log('📊 [SYNC] Response data:', data)
 
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao sincronizar')
       }
 
       setResult(data.stats)
+      console.log('✅ [SYNC] Sucesso! Stats:', data.stats)
       toast.success(`Sincronização concluída! ${data.stats.successful} pedidos importados`)
       
       // Recarregar página após 2 segundos
@@ -42,9 +48,11 @@ export function SyncAppmaxButton() {
       }, 2000)
 
     } catch (error: any) {
-      console.error('Erro na sincronização:', error)
+      console.error('❌ [SYNC] Erro na sincronização:', error)
+      console.error('❌ [SYNC] Error stack:', error.stack)
       toast.error(error.message || 'Erro ao sincronizar com Appmax')
     } finally {
+      console.log('🏁 [SYNC] Finalizando...')
       setSyncing(false)
     }
   }
