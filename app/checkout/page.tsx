@@ -48,6 +48,7 @@ export default function CheckoutPage() {
   const [cupomInput, setCupomInput] = useState("")
   const [appliedCupom, setAppliedCupom] = useState<string | null>(null)
   const [cupomError, setCupomError] = useState("")
+  const [cupomDiscount, setCupomDiscount] = useState(0) // Armazena o valor do desconto
   
   // Form data - Etapa 1
   const [formData, setFormData] = useState({
@@ -221,37 +222,8 @@ export default function CheckoutPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // Cupons disponíveis (hardcoded como installments)
-  const CUPONS: Record<string, { type: 'fixed' | 'percent', value: number }> = {
-    'ADMGM': { type: 'fixed', value: 35 },
-    'DESCONTOGC': { type: 'percent', value: 70 }
-  }
-
-  // Calcular desconto do cupom COM PROTEÇÃO CONTRA VALORES NEGATIVOS
-  const calculateCupomDiscount = (subtotal: number) => {
-    if (!appliedCupom || !CUPONS[appliedCupom]) return 0
-    
-    const cupom = CUPONS[appliedCupom]
-    let discount = 0
-    
-    if (cupom.type === 'fixed') {
-      discount = cupom.value
-    } else {
-      discount = (subtotal * cupom.value) / 100
-    }
-    
-    // SAFETY CHECK 1: Desconto nunca maior que subtotal
-    discount = Math.min(discount, subtotal)
-    
-    // SAFETY CHECK 2: Garantir que sempre sobre pelo menos R$ 0,10
-    // (Muitos gateways recusam transações zeradas ou negativas)
-    const MINIMUM_ORDER_VALUE = 0.10
-    if (subtotal - discount < MINIMUM_ORDER_VALUE) {
-      discount = subtotal - MINIMUM_ORDER_VALUE
-    }
-    
-    return Math.max(0, discount) // Nunca retornar desconto negativo
-  }
+  // Cupons disponíveis - MIGRADO PARA SUPABASE
+  // Os cupons agora são gerenciados via banco de dados (/admin/cupons)
 
   // Order Bumps
   const orderBumps = [
@@ -338,7 +310,7 @@ export default function CheckoutPage() {
   const basePrice = 36
   const orderBumpsTotal = selectedOrderBumps.reduce((acc, idx) => acc + orderBumps[idx].price, 0)
   const subtotal = basePrice + orderBumpsTotal
-  const cupomDiscount = calculateCupomDiscount(subtotal)
+  // cupomDiscount agora vem do state, calculado quando o cupom é aplicado
   const total = subtotal - cupomDiscount // Aplica desconto do cupom
   const MIN_CREDIT_TOTAL = 5.0
   
@@ -460,8 +432,8 @@ export default function CheckoutPage() {
     return message || 'Erro ao processar pagamento. Tente novamente.'
   }
 
-  // Aplicar cupom
-  const applyCupom = () => {
+  // Aplicar cupom - ATUALIZADO PARA USAR SUPABASE
+  const applyCupom = async () => {
     const cupomUpper = cupomInput.toUpperCase().trim()
     
     if (!cupomUpper) {
@@ -469,13 +441,35 @@ export default function CheckoutPage() {
       return
     }
     
-    if (CUPONS[cupomUpper]) {
-      setAppliedCupom(cupomUpper)
-      setCupomError("")
-      setCupomInput("")
-    } else {
-      setCupomError("Cupom inválido")
+    try {
+      setCupomError("Validando...")
+      
+      const response = await fetch('/api/checkout/validate-coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code: cupomUpper, 
+          cartTotal: subtotal 
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.valid) {
+        setAppliedCupom(cupomUpper)
+        setCupomDiscount(data.discountAmount || 0) // Salva o valor do desconto
+        setCupomError("")
+        setCupomInput("")
+      } else {
+        setCupomError(data.errorMessage || "Cupom inválido")
+        setAppliedCupom(null)
+        setCupomDiscount(0)
+      }
+    } catch (error) {
+      console.error('Erro ao validar cupom:', error)
+      setCupomError("Erro ao validar cupom. Tente novamente.")
       setAppliedCupom(null)
+      setCupomDiscount(0)
     }
   }
 
@@ -484,6 +478,7 @@ export default function CheckoutPage() {
     setAppliedCupom(null)
     setCupomInput("")
     setCupomError("")
+    setCupomDiscount(0)
   }
 
   // Formatação
@@ -625,6 +620,24 @@ export default function CheckoutPage() {
 
       // Processa resposta da API
       if (result.success) {
+        // Incrementar uso do cupom se houver
+        if (appliedCupom) {
+          try {
+            await fetch('/api/coupons/increment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                code: appliedCupom,
+                orderId: result.order_id 
+              }),
+            })
+            console.log('✅ Uso do cupom incrementado')
+          } catch (error) {
+            console.error('Erro ao incrementar cupom:', error)
+            // Não bloqueia o fluxo se falhar
+          }
+        }
+        
         if (paymentMethod === 'pix') {
           // Armazena dados do PIX para exibir nativamente
           if (result.pix_qr_code && result.pix_emv) {
@@ -1344,12 +1357,6 @@ export default function CheckoutPage() {
                       <p className="text-xs md:text-sm text-green-700 font-semibold">
                         Você economizou R$ {cupomDiscount.toFixed(2)}! 🎉
                       </p>
-                      {CUPONS[appliedCupom] && CUPONS[appliedCupom].type === 'fixed' && CUPONS[appliedCupom].value > subtotal && (
-                        <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          Desconto limitado ao valor do pedido
-                        </p>
-                      )}
                     </div>
                   ) : (
                     <div>
