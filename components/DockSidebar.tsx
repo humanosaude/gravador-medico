@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { Home, Compass, Wrench, ShoppingBag, User, FileText, BarChart3, ShoppingCart, MessageSquare, MessageCircle, Target } from "lucide-react"
+import { Home, Compass, Wrench, ShoppingBag, User, FileText, BarChart3, ShoppingCart, MessageSquare, MessageCircle, Target, Ticket } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import NotificationBell from "./NotificationBell"
@@ -48,6 +48,13 @@ export default function DockSidebar() {
       href: "/admin/tracking",
       label: "Tracking",
       description: "Rastreamento e atribuição",
+    },
+    {
+      id: "cupons",
+      icon: <Ticket className="w-6 h-6" />,
+      href: "/admin/cupons",
+      label: "Cupons",
+      description: "Gerenciar descontos",
     },
     {
       id: "chat",
