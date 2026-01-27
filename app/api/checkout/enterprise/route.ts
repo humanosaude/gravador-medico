@@ -99,10 +99,12 @@ export async function POST(request: NextRequest) {
         customer_name: customer.name,
         customer_phone: customer.phone,
         customer_cpf: customer.cpf,
-        amount: amount,
+        total_amount: amount, // ✅ CORRIGIDO: usar total_amount em vez de amount
+        amount: amount,        // Manter ambos para compatibilidade
         idempotency_key: idempotencyKey,
         order_status: 'processing',
         status: 'pending', // Status legado (manter compatibilidade)
+        payment_method: payment_method, // ✅ NOVO: salvar método de pagamento
         created_at: new Date().toISOString()
       })
       .select()
