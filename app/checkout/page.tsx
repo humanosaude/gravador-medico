@@ -7,6 +7,7 @@ import useEmblaCarousel from 'embla-carousel-react'
 import Autoplay from 'embla-carousel-autoplay'
 import { saveAbandonedCart, markCartAsRecovered } from '@/lib/abandonedCart'
 import { supabase } from '@/lib/supabase'
+import { useMercadoPago } from '@/hooks/useMercadoPago'
 import {
   Check,
   Clock,
@@ -34,6 +35,7 @@ import {
 
 export default function CheckoutPage() {
   const router = useRouter()
+  const { mp, loading: mpLoading, createCardToken } = useMercadoPago()
   
   // Estados principais
   const [currentStep, setCurrentStep] = useState(1) // 1: Dados, 2: Order Bumps, 3: Pagamento
@@ -602,18 +604,24 @@ export default function CheckoutPage() {
         utm_params: utmParams,
       }
       
-      // Se for cartão, tokeniza com Mercado Pago e envia token
+      // 🔐 TOKENIZAÇÃO SEGURA - Se for cartão, tokeniza com Mercado Pago
       if (paymentMethod === 'credit') {
-        // TODO: Tokenizar com MP SDK
-        payload.mpToken = 'TOKEN_DO_MP' // Placeholder
-        payload.cardData = {
-          number: cardData.number.replace(/\s/g, ''),
-          holderName: cardData.holderName,
-          expMonth: cardData.expMonth,
-          expYear: cardData.expYear,
-          cvv: cardData.cvv,
-          installments: cardData.installments,
-        }
+        console.log('🔐 Tokenizando cartão com Mercado Pago...')
+        
+        const token = await createCardToken({
+          cardNumber: cardData.number,
+          cardholderName: cardData.holderName || formData.name,
+          cardExpirationMonth: cardData.expMonth,
+          cardExpirationYear: cardData.expYear,
+          securityCode: cardData.cvv,
+          identificationType: 'CPF',
+          identificationNumber: formData.cpf,
+        })
+
+        console.log('✅ Token gerado:', token.id)
+        
+        payload.mpToken = token.id
+        payload.installments = cardData.installments
       }
       
       const response = await fetch('/api/checkout/enterprise', {

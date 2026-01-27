@@ -110,6 +110,9 @@ export default async function RootLayout({
           />
         </noscript>
         {/* End Meta Pixel Code */}
+
+        {/* Mercado Pago SDK */}
+        <script src="https://sdk.mercadopago.com/js/v2" />
       </head>
       <body className={`${plusJakartaSans.className} bg-white`}>
         <ToastProvider>
