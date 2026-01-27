@@ -68,14 +68,18 @@ export async function handleMercadoPagoWebhookEnterprise(request: NextRequest) {
     console.log(`🔍 Processando pagamento: ${paymentId}`)
 
     // =====================================================
-    // 3️⃣ DETECTAR WEBHOOK DE TESTE (MP Simulator)
+    // 3️⃣ DETECTAR WEBHOOK DE TESTE (MP Simulator) - ANTES DE BUSCAR NA API
     // =====================================================
     
     // Mercado Pago envia IDs de teste como "123456" no simulador
-    const isTestWebhook = paymentId === '123456' || paymentId.toString().length < 10
+    // Detectar ANTES de tentar buscar na API para evitar erro 404
+    const isTestWebhook = !paymentId || 
+                         paymentId === '123456' || 
+                         paymentId.toString().length < 10 ||
+                         typeof paymentId !== 'number' && typeof paymentId !== 'string'
     
     if (isTestWebhook) {
-      console.log('✅ Webhook de teste detectado - respondendo com sucesso')
+      console.log('✅ Webhook de teste detectado - respondendo com sucesso sem processar')
       
       if (logEntry) {
         await supabaseAdmin
@@ -83,14 +87,15 @@ export async function handleMercadoPagoWebhookEnterprise(request: NextRequest) {
           .update({ 
             processed: true, 
             processed_at: new Date().toISOString(),
-            last_error: 'Test webhook - não processado'
+            last_error: null,
+            processing_time_ms: Date.now() - startTime
           })
           .eq('id', logEntry.id)
       }
       
       return { 
         status: 200, 
-        message: 'Test webhook received successfully' 
+        message: 'Test webhook accepted' 
       }
     }
 
@@ -100,10 +105,23 @@ export async function handleMercadoPagoWebhookEnterprise(request: NextRequest) {
     
     let payment
     try {
-      payment = await getPaymentStatus(paymentId)
+      payment = await getPaymentStatus(paymentId.toString())
       console.log(`📊 Status do pagamento: ${payment.status}`)
     } catch (error: any) {
       console.error('❌ Erro ao buscar detalhes do pagamento:', error)
+      
+      // Se falhar ao buscar, logar e retornar erro
+      if (logEntry) {
+        await supabaseAdmin
+          .from('webhook_logs')
+          .update({
+            processed: false,
+            last_error: `Erro ao buscar pagamento ${paymentId}: ${error.message}`,
+            processing_time_ms: Date.now() - startTime
+          })
+          .eq('id', logEntry.id)
+      }
+      
       throw error
     }
 

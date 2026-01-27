@@ -45,13 +45,12 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Erro crítico no webhook route:', error)
 
-    // Retornar 200 para o MP não ficar reenviando
-    // (o erro já foi logado no banco)
+    // Retornar 500 para indicar erro real
     return NextResponse.json({
       success: false,
-      message: 'Webhook recebido mas com erro no processamento',
+      message: 'Internal server error',
       error: error.message
-    }, { status: 200 })
+    }, { status: 500 })
   }
 }
 
