@@ -29,6 +29,7 @@ function LoginForm() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // IMPORTANTE: Incluir cookies
         body: JSON.stringify({ email, password, rememberMe }),
       })
 
@@ -45,10 +46,15 @@ function LoginForm() {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('auth_remember')
 
+      // Aguardar um pouco para garantir que o cookie foi setado
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       // Redirecionar
       const redirect = searchParams.get('redirect') || '/admin/dashboard'
       console.log('🚀 Redirecionando para:', redirect)
-      router.push(redirect)
+      
+      // Usar window.location para forçar reload completo
+      window.location.href = redirect
     } catch (err: any) {
       console.error('❌ Erro ao fazer login:', err)
       setError(err.message || 'Email ou senha incorretos')
