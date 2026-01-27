@@ -10,25 +10,13 @@
 -- =====================================================
 -- Incluir vendas em processamento além de pagas
 
--- ✅ DROP de TODAS as versões possíveis da função
-DO $$ 
-BEGIN
-    -- Dropar versão sem parâmetros (se existir)
-    DROP FUNCTION IF EXISTS public.get_analytics_period();
-    
-    -- Dropar versão com 2 parâmetros timestamp (se existir)
-    DROP FUNCTION IF EXISTS public.get_analytics_period(timestamp, timestamp);
-    
-    -- Dropar versão com 2 parâmetros timestamp with time zone (se existir)
-    DROP FUNCTION IF EXISTS public.get_analytics_period(timestamp with time zone, timestamp with time zone);
-    
-EXCEPTION
-    WHEN undefined_function THEN
-        NULL; -- Ignora se a função não existir
-END $$;
+-- ✅ DROP com CASCADE para remover dependências
+DROP FUNCTION IF EXISTS public.get_analytics_period(timestamp with time zone, timestamp with time zone) CASCADE;
+DROP FUNCTION IF EXISTS public.get_analytics_period(timestamp, timestamp) CASCADE;
+DROP FUNCTION IF EXISTS public.get_analytics_period() CASCADE;
 
 -- Criar nova versão com campos adicionais
-CREATE FUNCTION public.get_analytics_period(
+CREATE OR REPLACE FUNCTION public.get_analytics_period(
     start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW() - INTERVAL '30 days',
     end_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 )
