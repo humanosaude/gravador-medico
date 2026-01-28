@@ -24,7 +24,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useNotifications } from '@/components/NotificationProvider'
 import { useSearchParams } from 'next/navigation'
-import { getDisplayContactName } from '@/lib/utils/contact-name-mapper'
+import { getDisplayContactName, formatPhoneNumber } from '@/lib/utils/contact-name-mapper'
 
 type FilterType = 'all' | 'unread' | 'favorites' | 'groups'
 
@@ -66,6 +66,7 @@ export default function WhatsAppInboxPage() {
   const [searchInChat, setSearchInChat] = useState('')
   const [showChatMenu, setShowChatMenu] = useState(false)
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const [showContactDetails, setShowContactDetails] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -1366,7 +1367,7 @@ export default function WhatsAppInboxPage() {
                     <button
                       onClick={() => {
                         setShowChatMenu(false)
-                        // Função futura: Ver dados do contato
+                        setShowContactDetails(true)
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#2a3942] transition-colors text-left"
                     >
@@ -1848,6 +1849,116 @@ export default function WhatsAppInboxPage() {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Dados do Contato */}
+      {showContactDetails && selectedConversation && (
+        <div 
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowContactDetails(false)
+          }}
+        >
+          <div className="bg-[#111b21] w-full max-w-md rounded-lg shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-[#202c33] px-4 py-3 flex items-center justify-between border-b border-gray-700">
+              <h3 className="text-white font-medium">Dados do contato</h3>
+              <button
+                onClick={() => setShowContactDetails(false)}
+                className="p-1 hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-6">
+              {/* Foto e Nome */}
+              <div className="flex flex-col items-center mb-6">
+                {selectedConversation.profile_picture_url ? (
+                  <img 
+                    src={selectedConversation.profile_picture_url} 
+                    alt="" 
+                    className="w-24 h-24 rounded-full object-cover mb-3"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                      if (fallback) fallback.style.display = 'flex'
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className={`w-24 h-24 rounded-full bg-[#00a884] flex items-center justify-center text-white text-3xl font-bold mb-3 ${selectedConversation.profile_picture_url ? 'hidden' : ''}`}
+                >
+                  {(selectedConversation.name?.[0] || '?').toUpperCase()}
+                </div>
+                <h4 className="text-white text-xl font-medium">
+                  {selectedConversation.name || 'Contato'}
+                </h4>
+                <p className="text-gray-400 text-sm">
+                  {formatPhoneNumber(selectedConversation.remote_jid?.replace('@s.whatsapp.net', '') || '')}
+                </p>
+              </div>
+
+              {/* Informações */}
+              <div className="space-y-4">
+                {/* Telefone */}
+                <div className="bg-[#202c33] rounded-lg p-4">
+                  <label className="text-[#00a884] text-xs font-medium uppercase tracking-wide">
+                    Telefone
+                  </label>
+                  <p className="text-white mt-1">
+                    {formatPhoneNumber(selectedConversation.remote_jid?.replace('@s.whatsapp.net', '') || '')}
+                  </p>
+                </div>
+
+                {/* Nome do WhatsApp */}
+                {selectedConversation.push_name && (
+                  <div className="bg-[#202c33] rounded-lg p-4">
+                    <label className="text-[#00a884] text-xs font-medium uppercase tracking-wide">
+                      Nome no WhatsApp
+                    </label>
+                    <p className="text-white mt-1">
+                      {selectedConversation.push_name}
+                    </p>
+                  </div>
+                )}
+
+                {/* Total de Mensagens */}
+                <div className="bg-[#202c33] rounded-lg p-4">
+                  <label className="text-[#00a884] text-xs font-medium uppercase tracking-wide">
+                    Total de mensagens
+                  </label>
+                  <p className="text-white mt-1">
+                    {messages.length} mensagens nesta conversa
+                  </p>
+                </div>
+
+                {/* Primeira Mensagem */}
+                {messages.length > 0 && (
+                  <div className="bg-[#202c33] rounded-lg p-4">
+                    <label className="text-[#00a884] text-xs font-medium uppercase tracking-wide">
+                      Primeira interação
+                    </label>
+                    <p className="text-white mt-1">
+                      {format(new Date(messages[0]?.timestamp || new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-[#202c33] border-t border-gray-700">
+              <button
+                onClick={() => setShowContactDetails(false)}
+                className="w-full py-2 bg-[#00a884] hover:bg-[#00997a] text-white font-medium rounded-lg transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}

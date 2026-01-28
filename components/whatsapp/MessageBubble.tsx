@@ -76,11 +76,13 @@ function useResolvedMediaUrl(message: WhatsAppMessage, enabled: boolean) {
   const [loading, setLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
   const requestedRef = useRef(false)
+  const [triedOriginalUrl, setTriedOriginalUrl] = useState(false)
 
   useEffect(() => {
     requestedRef.current = false
     setHasError(false)
     setLoading(false)
+    setTriedOriginalUrl(false)
   }, [cacheKey])
 
   const fetchBase64 = useCallback(async () => {
@@ -89,6 +91,7 @@ function useResolvedMediaUrl(message: WhatsAppMessage, enabled: boolean) {
     setHasError(false)
 
     try {
+      console.log('📸 [Media] Buscando base64 para:', message.message_id)
       const response = await fetch('/api/whatsapp/media', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,23 +103,39 @@ function useResolvedMediaUrl(message: WhatsAppMessage, enabled: boolean) {
       })
 
       if (!response.ok) {
+        console.error('📸 [Media] Erro na resposta:', response.status)
         throw new Error('Falha ao buscar midia')
       }
 
       const payload = await response.json()
       const dataUrl = payload?.dataUrl
       if (!dataUrl || typeof dataUrl !== 'string') {
+        console.error('📸 [Media] DataUrl não encontrado:', payload)
         throw new Error('Midia indisponivel')
       }
 
+      console.log('📸 [Media] Base64 obtido com sucesso')
       mediaCache.set(cacheKey, dataUrl)
       setMediaUrl(dataUrl)
-    } catch {
+    } catch (err) {
+      console.error('📸 [Media] Erro ao buscar:', err)
       setHasError(true)
     } finally {
       setLoading(false)
     }
   }, [cacheKey, loading, message.from_me, message.message_id, message.remote_jid])
+
+  // Função para tentar carregar a URL original e fallback para base64
+  const handleImageError = useCallback(() => {
+    if (!triedOriginalUrl) {
+      console.log('📸 [Media] URL original falhou, tentando base64...')
+      setTriedOriginalUrl(true)
+      setMediaUrl(null) // Limpar para mostrar loading
+      void fetchBase64()
+    } else {
+      setHasError(true)
+    }
+  }, [triedOriginalUrl, fetchBase64])
 
   useEffect(() => {
     if (!enabled) {
@@ -124,24 +143,35 @@ function useResolvedMediaUrl(message: WhatsAppMessage, enabled: boolean) {
       return
     }
 
+    // Primeiro verificar cache
+    const cachedMedia = mediaCache.get(cacheKey)
+    if (cachedMedia) {
+      setMediaUrl(cachedMedia)
+      return
+    }
+
+    // Se tem media_url do banco, usar (pode ser URL do WhatsApp ou data:)
     if (message.media_url) {
+      // Se já é base64, usar diretamente
+      if (message.media_url.startsWith('data:')) {
+        setMediaUrl(message.media_url)
+        return
+      }
+      
+      // Se é URL do WhatsApp, tentar usar mas pode expirar
+      // O componente vai chamar refetch via onError se falhar
       setMediaUrl(message.media_url)
       return
     }
 
-    const cached = mediaCache.get(cacheKey)
-    if (cached) {
-      setMediaUrl(cached)
-      return
-    }
-
+    // Sem URL, buscar via API
     if (message.message_id && !requestedRef.current) {
       requestedRef.current = true
       void fetchBase64()
     }
   }, [cacheKey, enabled, fetchBase64, message.media_url, message.message_id])
 
-  return { mediaUrl, loading, hasError, refetch: fetchBase64 }
+  return { mediaUrl, loading, hasError, refetch: fetchBase64, handleImageError }
 }
 
 export default function MessageBubble({ message, onDelete, onEdit, onReply }: MessageBubbleProps) {
@@ -155,8 +185,27 @@ export default function MessageBubble({ message, onDelete, onEdit, onReply }: Me
   
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [reactionsOpen, setReactionsOpen] = useState(false)
+  const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('bottom')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null)
   const reactionsRef = useRef<HTMLDivElement>(null)
+
+  // Detectar posição do dropdown quando abre
+  useEffect(() => {
+    if (dropdownOpen && dropdownButtonRef.current) {
+      const rect = dropdownButtonRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const spaceBelow = viewportHeight - rect.bottom
+      const spaceAbove = rect.top
+      
+      // Se tiver menos de 200px abaixo, abre para cima
+      if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+        setDropdownPosition('top')
+      } else {
+        setDropdownPosition('bottom')
+      }
+    }
+  }, [dropdownOpen])
 
   // Fechar dropdown ao clicar fora
   useEffect(() => {
@@ -188,10 +237,14 @@ export default function MessageBubble({ message, onDelete, onEdit, onReply }: Me
   }
   
   const isDeleted = message.content === '[Mensagem apagada]'
+  // Permite editar: mensagens suas, de texto (ou sem tipo definido mas com conteúdo de texto)
+  const isTextMessage = 
+    message.message_type === 'text' || 
+    (!message.message_type && message.content && !message.media_url)
   const canEdit =
     isFromMe &&
     !isDeleted &&
-    message.message_type === 'text' &&
+    isTextMessage &&
     typeof onEdit === 'function'
   const canDelete = isFromMe && !isDeleted && typeof onDelete === 'function'
   const canReply = !isDeleted && typeof onReply === 'function' && !!message.message_id
@@ -249,6 +302,7 @@ export default function MessageBubble({ message, onDelete, onEdit, onReply }: Me
         {/* Dropdown no topo direito (dentro do balão) */}
         <div className="absolute top-0 right-1 z-10" ref={dropdownRef}>
           <button
+            ref={dropdownButtonRef}
             type="button"
             onClick={() => setDropdownOpen(!dropdownOpen)}
             className={`p-1 rounded hover:bg-white/10 transition-opacity ${
@@ -259,9 +313,11 @@ export default function MessageBubble({ message, onDelete, onEdit, onReply }: Me
             <ChevronDown className="w-3.5 h-3.5 text-gray-300" />
           </button>
 
-          {/* Menu Dropdown - Abre para CIMA */}
+          {/* Menu Dropdown - Posição dinâmica baseada no espaço disponível */}
           {dropdownOpen && (
-            <div className="absolute right-0 bottom-full mb-1 w-48 bg-[#233138] rounded-md shadow-lg border border-gray-700 py-1 z-50">
+            <div className={`absolute right-0 w-48 bg-[#233138] rounded-md shadow-lg border border-gray-700 py-1 z-50 ${
+              dropdownPosition === 'bottom' ? 'top-full mt-1' : 'bottom-full mb-1'
+            }`}>
               {canReply && (
                 <button
                   type="button"
@@ -405,7 +461,7 @@ function MessageMedia({
   const { message_type: type, caption } = message
   const isMedia =
     type === 'image' || type === 'video' || type === 'document' || type === 'sticker'
-  const { mediaUrl, loading, hasError, refetch } = useResolvedMediaUrl(message, isMedia)
+  const { mediaUrl, loading, hasError, refetch, handleImageError } = useResolvedMediaUrl(message, isMedia)
 
   if (type === 'audio') {
     return <AudioMessage message={message} />
@@ -419,13 +475,18 @@ function MessageMedia({
     if (!mediaUrl) {
       return (
         <div className="mb-2 text-xs text-gray-300">
-          {loading ? 'Carregando mídia...' : hasError ? (
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              <span>Carregando imagem...</span>
+            </div>
+          ) : hasError ? (
             <button
               type="button"
               onClick={refetch}
-              className="underline"
+              className="underline hover:text-white"
             >
-              Recarregar imagem
+              🔄 Recarregar imagem
             </button>
           ) : (
             'Imagem indisponível'
@@ -444,12 +505,8 @@ function MessageMedia({
           <img
             src={mediaUrl}
             alt={caption || 'Imagem'}
-            className="rounded-lg max-w-full h-auto"
-            onError={() => {
-              if (!loading && !hasError) {
-                void refetch()
-              }
-            }}
+            className="rounded-lg max-w-[280px] max-h-[280px] w-auto h-auto object-contain"
+            onError={handleImageError}
           />
         </a>
       </div>
@@ -460,13 +517,18 @@ function MessageMedia({
     if (!mediaUrl) {
       return (
         <div className="mb-2 text-xs text-gray-300">
-          {loading ? 'Carregando mídia...' : hasError ? (
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <span className="animate-spin">⏳</span>
+              <span>Carregando vídeo...</span>
+            </div>
+          ) : hasError ? (
             <button
               type="button"
               onClick={refetch}
-              className="underline"
+              className="underline hover:text-white"
             >
-              Recarregar vídeo
+              🔄 Recarregar vídeo
             </button>
           ) : (
             'Vídeo indisponível'
@@ -478,12 +540,8 @@ function MessageMedia({
       <div className="mb-2">
         <video
           controls
-          className="rounded-lg max-w-full"
-          onError={() => {
-            if (!loading && !hasError) {
-              void refetch()
-            }
-          }}
+          className="rounded-lg max-w-[280px] max-h-[280px]"
+          onError={handleImageError}
         >
           <source src={mediaUrl} />
         </video>

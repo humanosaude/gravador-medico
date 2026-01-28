@@ -129,7 +129,7 @@ async function syncConversationIfPossible(remoteJid: string, limit = 20): Promis
 }
 
 /**
- * Busca a foto de perfil do contato usando endpoint correto Evolution v2
+ * Busca a foto de perfil E o nome do contato usando endpoint correto Evolution v2
  * 
  * ESTRATÉGIA DEFINITIVA (confirmada via fetchInstances):
  * 1. Tenta extrair do próprio payload da mensagem
@@ -141,13 +141,16 @@ async function syncConversationIfPossible(remoteJid: string, limit = 20): Promis
  * - Body usa apenas o número (sem @s.whatsapp.net)
  * - Resposta é ARRAY - precisa encontrar o contato correto por remoteJid
  * - Campo da foto: "profilePicUrl" ou "profilePictureUrl"
- * - Mensagem SEMPRE será salva, mesmo sem foto
+ * - Campo do nome: "pushName" ou "name"
+ * - Mensagem SEMPRE será salva, mesmo sem foto/nome
  */
-async function fetchProfilePicture(
+async function fetchContactInfo(
   remoteJid: string, 
   participant: string | undefined,
   messagePayload?: any
-): Promise<string | null> {
+): Promise<{ profilePictureUrl: string | null; pushName: string | null }> {
+  const defaultResult = { profilePictureUrl: null, pushName: null }
+  
   // Wrapper try-catch global para garantir que NUNCA trava
   try {
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL
@@ -155,38 +158,42 @@ async function fetchProfilePicture(
     const EVOLUTION_INSTANCE_NAME = process.env.EVOLUTION_INSTANCE_NAME
 
     if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE_NAME) {
-      console.warn('⚠️ [DEBUG FOTO] Variáveis de ambiente não configuradas - salvando sem foto')
-      return null
+      console.warn('⚠️ [fetchContactInfo] Variáveis de ambiente não configuradas')
+      return defaultResult
     }
 
     // ================================================================
-    // ESTRATÉGIA 1: Verificar se a foto já vem no payload da mensagem
+    // ESTRATÉGIA 1: Verificar se os dados já vêm no payload da mensagem
     // ================================================================
+    let photoFromPayload: string | null = null
+    let nameFromPayload: string | null = null
+    
     if (messagePayload) {
-      const photoFromPayload = 
+      photoFromPayload = 
         messagePayload.profilePictureUrl ||
         messagePayload.profilePicUrl ||
         messagePayload.picture ||
         messagePayload.imgUrl ||
-        (messagePayload.pushName && messagePayload.profilePicture) ||
+        null
+        
+      nameFromPayload = 
+        messagePayload.pushName ||
+        messagePayload.name ||
+        messagePayload.verifiedName ||
         null
 
-      if (photoFromPayload) {
-        console.log(`✅ [DEBUG FOTO] Encontrada no payload: ${photoFromPayload}`)
-        return photoFromPayload
+      if (photoFromPayload && nameFromPayload) {
+        console.log(`✅ [fetchContactInfo] Dados encontrados no payload: ${nameFromPayload}`)
+        return { profilePictureUrl: photoFromPayload, pushName: nameFromPayload }
       }
     }
 
     // ================================================================
     // ESTRATÉGIA 2: POST /chat/findContacts (VALIDADO via terminal)
-    // Body: {"number": "5521988960217"} (apenas número, sem @s.whatsapp.net)
-    // Response: Array com campo profilePicUrl
-    // CORREÇÃO: Identifica remetente correto (grupo usa participant)
+    // Busca foto E nome do contato do WhatsApp
     // ================================================================
     
     // 🎯 IDENTIFICAR REMETENTE CORRETO
-    // Se for grupo (@g.us), usar participant
-    // Se for privado (@s.whatsapp.net), usar remoteJid
     const isGroup = remoteJid.includes('@g.us')
     const actualSenderJid = isGroup && participant ? participant : remoteJid
     const phoneNumber = actualSenderJid.split('@')[0]
@@ -194,7 +201,7 @@ async function fetchProfilePicture(
     const url = `${EVOLUTION_API_URL}/chat/findContacts/${EVOLUTION_INSTANCE_NAME}`
     const requestBody = { number: phoneNumber }
     
-    console.log(`📸 Buscando foto: ${phoneNumber} (${isGroup ? 'grupo' : 'privado'})`)
+    console.log(`📸 [fetchContactInfo] Buscando info: ${phoneNumber} (${isGroup ? 'grupo' : 'privado'})`)
     
     // Timeout de 5 segundos para não travar o webhook
     const controller = new AbortController()
@@ -213,48 +220,62 @@ async function fetchProfilePicture(
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      console.error(`❌ Erro ao buscar foto (HTTP ${response.status})`)
-      return null
+      console.error(`❌ [fetchContactInfo] Erro HTTP ${response.status}`)
+      return { profilePictureUrl: photoFromPayload, pushName: nameFromPayload }
     }
 
     const data = await response.json()
+    console.log(`📋 [fetchContactInfo] Resposta da API:`, JSON.stringify(data).substring(0, 500))
+    
     const contacts = Array.isArray(data) ? data : (data ? [data] : [])
     
     if (contacts.length === 0) {
-      console.log(`⚠️ Nenhum contato retornado para ${phoneNumber}`)
-      return null
+      console.log(`⚠️ [fetchContactInfo] Nenhum contato retornado para ${phoneNumber}`)
+      return { profilePictureUrl: photoFromPayload, pushName: nameFromPayload }
     }
     
     // 🎯 BUSCAR CONTATO ESPECÍFICO (não pegar o primeiro!)
-    const targetContact = contacts.find(c => c.remoteJid === actualSenderJid)
+    // Tenta encontrar pelo remoteJid exato, ou pega o primeiro se não encontrar
+    const targetContact = contacts.find((c: any) => c.remoteJid === actualSenderJid) || contacts[0]
     
-    if (!targetContact) {
-      console.log(`⚠️ Contato ${actualSenderJid} não encontrado no array`)
-      return null
-    }
+    console.log(`📋 [fetchContactInfo] Contato encontrado:`, JSON.stringify(targetContact).substring(0, 300))
     
+    // Extrair foto
     const photoUrl = 
       targetContact.profilePicUrl ||
       targetContact.profilePictureUrl || 
       targetContact.picture ||
       targetContact.imgUrl ||
+      photoFromPayload ||
+      null
+      
+    // Extrair nome - vários campos possíveis
+    const contactName = 
+      targetContact.pushName ||
+      targetContact.name ||
+      targetContact.verifiedName ||
+      targetContact.notify ||
+      targetContact.displayName ||
+      nameFromPayload ||
       null
 
-    if (photoUrl && typeof photoUrl === 'string') {
-      console.log(`✅ Foto encontrada: ${photoUrl.substring(0, 60)}...`)
-      return photoUrl
+    if (photoUrl || contactName) {
+      console.log(`✅ [fetchContactInfo] Dados obtidos - Nome: "${contactName}", Foto: ${photoUrl ? 'sim' : 'não'}`)
     }
-
-    return null
+    
+    return { 
+      profilePictureUrl: photoUrl, 
+      pushName: contactName 
+    }
     
   } catch (error) {
-    // CRÍTICO: Mesmo com erro, retorna null para não travar o webhook
+    // CRÍTICO: Mesmo com erro, retorna objeto vazio para não travar o webhook
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error('⏱️ [DEBUG FOTO] Timeout ao buscar foto - continuando sem foto')
+      console.error('⏱️ [fetchContactInfo] Timeout - continuando sem dados')
     } else {
-      console.error('❌ [DEBUG FOTO] Erro ao buscar (não crítico - continuando):', error)
+      console.error('❌ [fetchContactInfo] Erro (não crítico):', error)
     }
-    return null
+    return defaultResult
   }
 }
 
@@ -525,35 +546,60 @@ export async function POST(request: NextRequest) {
     const { content, media_url, caption, type } = extractMessageContent(message, messageType)
 
     // ================================================================
-    // PASSO 1: Buscar foto de perfil (NÃO CRÍTICO - nunca trava)
+    // PASSO 1: Buscar foto E nome do contato (NÃO CRÍTICO - nunca trava)
     // Usa endpoint /chat/findContacts confirmado via teste curl
     // IMPORTANTE: Passa participant para identificar remetente em grupos
     // ================================================================
-    const profilePictureUrl = await fetchProfilePicture(
+    const contactInfo = await fetchContactInfo(
       normalizedRemoteJid,
       key.participant,  // Para mensagens de grupo
       extracted.rawData ?? payload?.data ?? payload
     )
     
+    const profilePictureUrl = contactInfo.profilePictureUrl
+    const fetchedPushName = contactInfo.pushName
+    
     if (profilePictureUrl) {
       console.log(`✅ Foto obtida: ${profilePictureUrl.substring(0, 50)}...`)
+    }
+    if (fetchedPushName) {
+      console.log(`✅ Nome obtido: ${fetchedPushName}`)
     }
 
     // ================================================================
     // PASSO 2: UPSERT do contato PRIMEIRO (resolver FK constraint)
     // GARANTIA: Sempre salva o contato, mesmo sem foto
+    // ⚠️ IMPORTANTE: Só atualiza push_name se a mensagem é DO CLIENTE (from_me=false)
+    //    Se from_me=true, o pushName seria o nome da instância, não do cliente
     // ================================================================
+    
+    // 🔧 CORREÇÃO: Determinar from_me ANTES de salvar contato
+    const fromMeValue = key.fromMe
+    const fromMeBoolean = normalizeFromMeValue(fromMeValue)
+    
+    // 🎯 PRIORIDADE DE NOMES:
+    // 1. Nome buscado via API (fetchedPushName) - mais confiável
+    // 2. Nome do payload do webhook (pushName) - pode ser incorreto se from_me=true
+    const bestPushName = fetchedPushName || pushName
+    
     try {
-      console.log(`🔍 [ANTES UPSERT] Contato: ${normalizedRemoteJid}, push_name: "${pushName}"`)
+      console.log(`🔍 [ANTES UPSERT] Contato: ${normalizedRemoteJid}, pushName webhook: "${pushName}", pushName API: "${fetchedPushName}", from_me: ${fromMeBoolean}`)
+      
+      // ⚠️ Só atualiza push_name se:
+      // 1. A mensagem veio DO CLIENTE (não de mim), OU
+      // 2. O nome foi obtido via API (fetchedPushName) - sempre confiável
+      const shouldUpdatePushName = 
+        (fetchedPushName && fetchedPushName !== 'Assistente Virtual') ||
+        (!fromMeBoolean && bestPushName && bestPushName !== 'Assistente Virtual')
       
       const contactData = {
         remote_jid: normalizedRemoteJid,
-        push_name: pushName || undefined,
+        push_name: shouldUpdatePushName ? bestPushName : undefined,
         profile_picture_url: profilePictureUrl || undefined,
         is_group: normalizedRemoteJid.includes('@g.us')
       }
       
-      console.log(`📤 [ENVIANDO UPSERT]`, JSON.stringify(contactData, null, 2))
+      console.log(`📤 [ENVIANDO UPSERT] shouldUpdatePushName: ${shouldUpdatePushName}, nome: "${contactData.push_name}"`)
       
       const savedContact = await upsertWhatsAppContact(contactData)
       
@@ -572,10 +618,7 @@ export async function POST(request: NextRequest) {
     // ================================================================
     // PASSO 3: INSERT da mensagem (agora o FK existe)
     // ================================================================
-    
-    // 🔧 CORREÇÃO: Garantir que from_me seja boolean (pode vir como string ou outro tipo)
-    const fromMeValue = key.fromMe
-    const fromMeBoolean = normalizeFromMeValue(fromMeValue)
+    // 🔧 fromMeBoolean já foi calculado acima no PASSO 2
     
     console.log('🔍 [DEBUG CONVERSÃO] from_me original:', fromMeValue, typeof fromMeValue)
     console.log('🔍 [DEBUG CONVERSÃO] from_me convertido:', fromMeBoolean, typeof fromMeBoolean)
