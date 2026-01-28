@@ -621,6 +621,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             </button>
                           )
                         })}
+                        
+                        {/* Renderizar subItems (Demográfico dentro de Meta Ads) */}
+                        {item.subItems && item.subItems.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-700/50">
+                            <button
+                              onClick={() => toggleGroup('Demográfico')}
+                              className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                pathname.includes('/admin/ads/demografico')
+                                  ? 'bg-gray-800/70 text-white'
+                                  : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                              }`}
+                            >
+                              <Users className="w-4 h-4 mr-3" />
+                              <span className="flex-1 text-left">Demográfico</span>
+                              <ChevronDown className={`w-3 h-3 transition-transform ${openGroups['Demográfico'] ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {openGroups['Demográfico'] && (
+                              <div className="ml-6 mt-1 space-y-1">
+                                {item.subItems.map((subItem) => {
+                                  const isSubActive = pathname === subItem.href
+                                  const SubIcon = subItem.icon
+                                  
+                                  return (
+                                    <button
+                                      key={subItem.href}
+                                      onClick={() => router.push(subItem.href)}
+                                      className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                        isSubActive
+                                          ? 'bg-gradient-to-r from-brand-500/70 to-brand-600/70 text-white'
+                                          : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                                      }`}
+                                    >
+                                      <SubIcon className="w-4 h-4 mr-3" />
+                                      <span className="flex-1 text-left">{subItem.label}</span>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -777,6 +819,51 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 </button>
                               )
                             })}
+                            
+                            {/* Renderizar subItems (Demográfico dentro de Meta Ads) - Mobile */}
+                            {item.subItems && item.subItems.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                <button
+                                  onClick={() => toggleGroup('Demográfico')}
+                                  className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                    pathname.includes('/admin/ads/demografico')
+                                      ? 'bg-gray-800/70 text-white'
+                                      : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                                  }`}
+                                >
+                                  <Users className="w-4 h-4 mr-3" />
+                                  <span className="flex-1 text-left">Demográfico</span>
+                                  <ChevronDown className={`w-3 h-3 transition-transform ${openGroups['Demográfico'] ? 'rotate-180' : ''}`} />
+                                </button>
+                                
+                                {openGroups['Demográfico'] && (
+                                  <div className="ml-6 mt-1 space-y-1">
+                                    {item.subItems.map((subItem) => {
+                                      const isSubActive = pathname === subItem.href
+                                      const SubIcon = subItem.icon
+                                      
+                                      return (
+                                        <button
+                                          key={subItem.href}
+                                          onClick={() => {
+                                            router.push(subItem.href)
+                                            setSidebarOpen(false)
+                                          }}
+                                          className={`w-full flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                            isSubActive
+                                              ? 'bg-gradient-to-r from-brand-500/70 to-brand-600/70 text-white'
+                                              : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                                          }`}
+                                        >
+                                          <SubIcon className="w-4 h-4 mr-3" />
+                                          <span className="flex-1 text-left">{subItem.label}</span>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
