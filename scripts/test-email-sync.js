@@ -1,10 +1,13 @@
 #!/usr/bin/env node
-// Script para enviar email de teste
+// Script para resetar senha no Lovable e enviar email de teste
 
 const { Resend } = require('resend');
 require('dotenv').config({ path: '.env.local' });
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+const LOVABLE_URL = process.env.NEXT_PUBLIC_LOVABLE_EDGE_FUNCTION_URL;
+const API_SECRET = 'webhook-appmax-2026-secure-key';
 
 // Cores do Design System
 const colors = {
@@ -18,14 +21,93 @@ const colors = {
   muted: '#E8F8F5',
 };
 
-async function sendTestEmail() {
-  console.log('📧 Enviando email de teste para helciodmtt@gmail.com...\n');
+// Gerar senha segura
+function generateSecurePassword(length = 12) {
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const symbols = '!@#$%&*';
+  
+  const allChars = lowercase + uppercase + numbers + symbols;
+  
+  let password = '';
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+async function main() {
+  const email = 'helciodmtt@gmail.com';
+  const name = 'Helcio Mattos';
+  
+  console.log('=====================================================');
+  console.log('📧 EMAIL DE TESTE COM SENHA SINCRONIZADA');
+  console.log('=====================================================\n');
+  
+  // 1. Buscar usuário no Lovable
+  console.log('1️⃣ Buscando usuário no Lovable...');
+  
+  const listResponse = await fetch(LOVABLE_URL, {
+    method: 'GET',
+    headers: {
+      'x-api-secret': API_SECRET,
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  const listData = await listResponse.json();
+  const user = listData.users?.find(u => u.email === email);
+  
+  if (!user) {
+    console.log('❌ Usuário não encontrado no Lovable');
+    return;
+  }
+  
+  console.log(`   ✅ Usuário encontrado: ${user.id}`);
+  
+  // 2. Gerar nova senha
+  const newPassword = generateSecurePassword();
+  console.log(`\n2️⃣ Gerando nova senha: ${newPassword}`);
+  
+  // 3. Resetar senha no Lovable
+  console.log('\n3️⃣ Resetando senha no Lovable...');
+  
+  const resetResponse = await fetch(LOVABLE_URL, {
+    method: 'PUT',
+    headers: {
+      'x-api-secret': API_SECRET,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: user.id,
+      newPassword: newPassword,
+    }),
+  });
+  
+  const resetData = await resetResponse.json();
+  
+  if (!resetResponse.ok) {
+    console.log('❌ Erro ao resetar senha:', resetData);
+    return;
+  }
+  
+  console.log('   ✅ Senha resetada com sucesso!');
+  
+  // 4. Enviar email
+  console.log('\n4️⃣ Enviando email...');
   
   try {
     const { data, error } = await resend.emails.send({
       from: 'Gravador Médico <suporte@gravadormedico.com.br>',
-      to: 'helciodmtt@gmail.com',
-      subject: '🎙️ Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
+      to: email,
+      subject: '🎙️ Gravador Médico - Seus Dados de Acesso',
       html: `
 <!DOCTYPE html>
 <html>
@@ -54,7 +136,7 @@ async function sendTestEmail() {
           <tr>
             <td style="padding: 40px;">
               <p style="color: ${colors.textPrimary}; font-size: 17px; line-height: 1.6; margin: 0 0 24px 0;">
-                Olá <strong>Helcio Mattos</strong>,
+                Olá <strong>${name}</strong>,
               </p>
               
               <p style="color: ${colors.textSecondary}; font-size: 15px; line-height: 1.7; margin: 0 0 32px 0;">
@@ -73,14 +155,14 @@ async function sendTestEmail() {
                     <div style="margin-bottom: 16px;">
                       <p style="color: ${colors.textSecondary}; font-size: 13px; margin: 0 0 6px 0;">E-mail:</p>
                       <p style="background-color: ${colors.card}; color: ${colors.textPrimary}; font-size: 15px; font-family: monospace; font-weight: 600; margin: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid ${colors.border};">
-                        helciodmtt@gmail.com
+                        ${email}
                       </p>
                     </div>
 
                     <div>
-                      <p style="color: ${colors.textSecondary}; font-size: 13px; margin: 0 0 6px 0;">Senha Temporária:</p>
+                      <p style="color: ${colors.textSecondary}; font-size: 13px; margin: 0 0 6px 0;">Senha:</p>
                       <p style="background-color: ${colors.card}; color: ${colors.textPrimary}; font-size: 15px; font-family: monospace; font-weight: 600; margin: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid ${colors.border};">
-                        Teste@2026Abc!
+                        ${newPassword}
                       </p>
                     </div>
                   </td>
@@ -117,7 +199,7 @@ async function sendTestEmail() {
                           <span style="color: ${colors.textSecondary}; font-size: 14px;">Pedido:</span>
                         </td>
                         <td style="padding-bottom: 8px; text-align: right;">
-                          <span style="color: ${colors.textPrimary}; font-size: 14px; font-weight: 600;">#89526A33</span>
+                          <span style="color: ${colors.textPrimary}; font-size: 14px; font-weight: 600;">#TESTE2801</span>
                         </td>
                       </tr>
                       <tr>
@@ -164,15 +246,25 @@ async function sendTestEmail() {
     });
     
     if (error) {
-      console.error('❌ Erro:', error);
+      console.error('❌ Erro ao enviar email:', error);
       return;
     }
     
-    console.log('✅ Email enviado com sucesso!');
-    console.log('   ID:', data?.id);
+    console.log('   ✅ Email enviado com sucesso!');
+    console.log(`   📧 ID: ${data?.id}`);
+    
+    console.log('\n=====================================================');
+    console.log('✅ CONCLUÍDO!');
+    console.log('=====================================================');
+    console.log(`\n📧 Email: ${email}`);
+    console.log(`🔑 Senha: ${newPassword}`);
+    console.log('\n⚠️  A senha acima está SINCRONIZADA com o Lovable!');
+    console.log('   Você pode fazer login com essas credenciais.');
+    console.log('=====================================================\n');
+    
   } catch (err) {
     console.error('❌ Erro crítico:', err);
   }
 }
 
-sendTestEmail();
+main();

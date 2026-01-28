@@ -20,7 +20,7 @@ async function sendTest() {
   console.log('📧 Enviando e-mail de teste com novo design...');
   
   const { data, error } = await resend.emails.send({
-    from: 'Gravador Médico <noreply@gravadormedico.com.br>',
+    from: 'Gravador Médico <suporte@gravadormedico.com.br>',
     to: 'helciodmtt@gmail.com',
     subject: 'Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
     html: `

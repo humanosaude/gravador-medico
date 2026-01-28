@@ -128,7 +128,7 @@ async function sendWelcomeEmail(params) {
     };
     
     const { data, error } = await resend.emails.send({
-      from: 'Gravador Médico <noreply@gravadormedico.com.br>',
+      from: 'Gravador Médico <suporte@gravadormedico.com.br>',
       to: params.to,
       subject: '�️ Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
       html: `
@@ -264,7 +264,7 @@ async function sendWelcomeEmail(params) {
       recipient_name: params.customerName,
       subject: '🎉 Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
       email_type: 'welcome',
-      from_email: 'noreply@gravadormedico.com.br',
+      from_email: 'suporte@gravadormedico.com.br',
       from_name: 'Gravador Médico',
       order_id: params.orderId,
       status: 'sent',
@@ -289,7 +289,7 @@ async function sendWelcomeEmail(params) {
       recipient_name: params.customerName,
       subject: '🎉 Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
       email_type: 'welcome',
-      from_email: 'noreply@gravadormedico.com.br',
+      from_email: 'suporte@gravadormedico.com.br',
       from_name: 'Gravador Médico',
       order_id: params.orderId,
       status: 'failed',

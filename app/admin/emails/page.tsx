@@ -402,9 +402,9 @@ export default function EmailManagementPage() {
                             setSelectedEmail(email)
                             setShowPreview(true)
                           }}
-                          className="hover:bg-blue-900/30 hover:text-blue-400"
+                          className="hover:bg-blue-900/30 hover:text-blue-400 text-white"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-4 h-4 text-white" />
                         </Button>
                       </TableCell>
                     </TableRow>

@@ -21,7 +21,7 @@ export async function sendWelcomeEmail(params: SendWelcomeEmailParams) {
   try {
     // Primeiro, enviar o e-mail
     const { data, error } = await resend.emails.send({
-      from: 'Gravador Médico <noreply@gravadormedico.com.br>',
+      from: 'Gravador Médico <suporte@gravadormedico.com.br>',
       to: params.to,
       subject: '🎉 Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
       react: WelcomeEmail({
@@ -43,7 +43,7 @@ export async function sendWelcomeEmail(params: SendWelcomeEmailParams) {
         recipient_name: params.customerName,
         subject: '🎉 Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
         email_type: 'welcome',
-        from_email: 'noreply@gravadormedico.com.br',
+        from_email: 'suporte@gravadormedico.com.br',
         from_name: 'Gravador Médico',
         order_id: params.orderId,
         status: 'failed',
@@ -69,7 +69,7 @@ export async function sendWelcomeEmail(params: SendWelcomeEmailParams) {
       recipient_name: params.customerName,
       subject: '🎉 Bem-vindo ao Gravador Médico - Seus Dados de Acesso',
       email_type: 'welcome',
-      from_email: 'noreply@gravadormedico.com.br',
+      from_email: 'suporte@gravadormedico.com.br',
       from_name: 'Gravador Médico',
       order_id: params.orderId,
       status: 'sent',
@@ -103,7 +103,7 @@ export async function sendPixPendingEmail(params: {
 }) {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Gravador Médico <noreply@gravadormedico.com.br>',
+      from: 'Gravador Médico <suporte@gravadormedico.com.br>',
       to: params.to,
       subject: '⏳ Aguardando Pagamento PIX - Gravador Médico',
       html: `
