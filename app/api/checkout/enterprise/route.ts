@@ -137,6 +137,11 @@ export async function POST(request: NextRequest) {
     // 4️⃣ TENTATIVA 1: MERCADO PAGO
     // =====================================================
 
+    console.log('🔍 Verificando condições para Mercado Pago...')
+    console.log(`   payment_method: ${payment_method}`)
+    console.log(`   mpToken exists: ${!!mpToken}`)
+    console.log(`   mpToken value: ${mpToken ? mpToken.substring(0, 20) + '...' : 'NULL'}`)
+
     if (payment_method === 'credit_card' && mpToken) {
       try {
         console.log('💳 [1/2] Tentando Mercado Pago...')
@@ -432,6 +437,10 @@ export async function POST(request: NextRequest) {
     // 5️⃣ TENTATIVA 2: APPMAX (FALLBACK)
     // =====================================================
 
+    console.log('🔍 Verificando condições para AppMax...')
+    console.log(`   appmax_data exists: ${!!appmax_data}`)
+    console.log(`   appmax_data:`, appmax_data ? JSON.stringify(appmax_data, null, 2) : 'NULL')
+
     if (appmax_data) {
       try {
         console.log('💳 [2/2] Tentando AppMax (fallback)...')
@@ -533,10 +542,13 @@ export async function POST(request: NextRequest) {
     }
 
     // =====================================================
-    // ❌ AMBOS RECUSARAM
+    // ❌ AMBOS RECUSARAM (OU NENHUM FOI TENTADO)
     // =====================================================
 
-    console.log('❌ [FAILED] Todos os gateways recusaram')
+    console.log('❌ [FAILED] Nenhum gateway processou o pagamento')
+    console.log('🔍 Resumo das tentativas:')
+    console.log(`   MP foi tentado? ${payment_method === 'credit_card' && !!mpToken ? 'SIM' : 'NÃO'}`)
+    console.log(`   AppMax foi tentado? ${!!appmax_data ? 'SIM' : 'NÃO'}`)
 
     // Atualizar pedido: processing → failed
     await supabaseAdmin
@@ -550,7 +562,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: 'Pagamento recusado por todos os gateways. Tente outro cartão ou entre em contato com seu banco.',
-      order_id: order.id
+      order_id: order.id,
+      debug: {
+        mp_attempted: payment_method === 'credit_card' && !!mpToken,
+        appmax_attempted: !!appmax_data,
+        payment_method,
+        has_mpToken: !!mpToken,
+        has_appmax_data: !!appmax_data
+      }
     }, { status: 402 })
 
   } catch (error: any) {

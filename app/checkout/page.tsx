@@ -680,11 +680,16 @@ export default function CheckoutPage() {
       if (paymentMethod === 'credit') {
         console.log('🔐 Tokenizando cartão com Mercado Pago...')
         
+        // Garantir que o ano está em 2 dígitos para o MP
+        const expYear2Digits = cardData.expYear.length === 4 
+          ? cardData.expYear.slice(-2) // 2030 → 30
+          : cardData.expYear.padStart(2, '0') // 30 → 30, 5 → 05
+        
         const token = await createCardToken({
           cardNumber: cardData.number,
           cardholderName: cardData.holderName || formData.name,
           cardExpirationMonth: cardData.expMonth,
-          cardExpirationYear: cardData.expYear,
+          cardExpirationYear: expYear2Digits, // ✅ SEMPRE 2 dígitos
           securityCode: cardData.cvv,
           identificationType: formData.documentType, // CPF ou CNPJ
           identificationNumber: formData.cpf,
@@ -703,7 +708,7 @@ export default function CheckoutPage() {
             number: cardData.number.replace(/\s/g, ''),
             holder_name: cardData.holderName || formData.name,
             exp_month: cardData.expMonth,
-            exp_year: cardData.expYear.length === 2 ? `20${cardData.expYear}` : cardData.expYear,
+            exp_year: cardData.expYear.length === 2 ? `20${cardData.expYear}` : cardData.expYear, // AppMax aceita 4 dígitos
             cvv: cardData.cvv,
             installments: cardData.installments || 1,
           },
