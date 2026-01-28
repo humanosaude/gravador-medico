@@ -464,9 +464,9 @@ export default function EmailManagementPage() {
 
       {/* Email Preview Dialog - Estilo Resend */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden bg-gray-900 border-gray-700 p-0">
+        <DialogContent className="max-w-5xl h-[90vh] bg-gray-900 border-gray-700 p-0 flex flex-col overflow-hidden">
           {selectedEmail && (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full overflow-hidden">
               {/* Header do Email */}
               <div className="border-b border-gray-700 p-6">
                 <div className="flex items-start gap-4">
@@ -597,9 +597,9 @@ export default function EmailManagementPage() {
               </div>
 
               {/* Tabs de Conteúdo */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <Tabs defaultValue="preview" className="h-full flex flex-col">
-                  <TabsList className="bg-gray-800 border-b border-gray-700 rounded-none px-6 py-0 h-auto">
+                  <TabsList className="bg-gray-800 border-b border-gray-700 rounded-none px-6 py-0 h-auto flex-shrink-0">
                     <TabsTrigger value="preview" className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 rounded-none py-3 px-4">
                       Preview
                     </TabsTrigger>
@@ -611,19 +611,20 @@ export default function EmailManagementPage() {
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="preview" className="flex-1 overflow-auto p-0 m-0 data-[state=active]:flex-1">
+                  <TabsContent value="preview" className="flex-1 min-h-0 overflow-auto p-0 m-0">
                     {selectedEmail.html_content ? (
-                      <div className="bg-gray-100 p-4 h-[450px] overflow-auto">
+                      <div className="bg-gray-100 p-4 min-h-full">
                         <div className="max-w-[600px] mx-auto shadow-lg">
                           <iframe
                             srcDoc={selectedEmail.html_content}
-                            className="w-full h-[420px] border-0 bg-white rounded-lg"
+                            className="w-full min-h-[600px] h-auto border-0 bg-white rounded-lg"
                             title="Email Preview"
+                            style={{ height: '100%', minHeight: '600px' }}
                           />
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-gray-100 p-4 h-[450px] overflow-auto">
+                      <div className="bg-gray-100 p-4 min-h-full overflow-auto">
                         <div className="max-w-[600px] mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
                           {/* Header simulado do email */}
                           <div className="bg-gradient-to-r from-teal-500 to-teal-600 p-8 text-center">
@@ -707,7 +708,7 @@ export default function EmailManagementPage() {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="details" className="flex-1 overflow-auto p-6 m-0">
+                  <TabsContent value="details" className="flex-1 min-h-0 overflow-auto p-6 m-0">
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <h3 className="text-sm font-semibold text-gray-400 uppercase">Informações do Email</h3>
@@ -769,8 +770,8 @@ export default function EmailManagementPage() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="html" className="flex-1 overflow-auto p-0 m-0">
-                    <pre className="p-6 text-xs text-gray-400 overflow-auto h-[400px] bg-gray-950">
+                  <TabsContent value="html" className="flex-1 min-h-0 overflow-auto p-0 m-0">
+                    <pre className="p-6 text-xs text-gray-400 overflow-auto min-h-full bg-gray-950">
                       <code>{selectedEmail.html_content || 'HTML não disponível'}</code>
                     </pre>
                   </TabsContent>
