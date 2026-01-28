@@ -30,9 +30,33 @@ import {
   Receipt,
   ShieldCheck,
   Ban,
-  Loader2
+  Loader2,
+  Percent
 } from 'lucide-react'
 import Image from 'next/image'
+
+// Constantes de taxas do Mercado Pago
+const MP_PIX_FEE_PERCENT = 0.70 // 0,70% do valor
+const MP_PIX_FEE_FIXED = 0.25 // R$ 0,25 fixo por transação
+
+// Função para calcular taxas do Mercado Pago (PIX)
+function calculateMPFees(revenue: number, pixSalesCount: number) {
+  // Taxa percentual: 0,70% do valor
+  const percentFee = revenue * (MP_PIX_FEE_PERCENT / 100)
+  // Taxa fixa: R$ 0,25 por transação PIX
+  const fixedFee = pixSalesCount * MP_PIX_FEE_FIXED
+  // Total de taxas
+  const totalFees = percentFee + fixedFee
+  // Valor líquido
+  const netRevenue = revenue - totalFees
+  
+  return {
+    percentFee,
+    fixedFee,
+    totalFees,
+    netRevenue
+  }
+}
 
 // Tipos
 interface PaymentTransaction {
@@ -592,6 +616,56 @@ export default function PaymentsPage() {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* Card de Taxas Mercado Pago */}
+        {stats && stats.total_revenue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="rounded-2xl bg-gradient-to-br from-orange-500/10 via-gray-800/50 to-gray-800/50 border border-orange-500/20 p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-orange-500/20">
+                  <Percent className="w-5 h-5 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Taxas Mercado Pago (PIX)</h3>
+                  <p className="text-xs text-gray-400">0,70% + R$ 0,25 por transação</p>
+                </div>
+              </div>
+            </div>
+            
+            {(() => {
+              const mpFees = calculateMPFees(stats.total_revenue, stats.approved_count)
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                  <div className="p-3 rounded-xl bg-gray-800/50">
+                    <p className="text-xs text-gray-400 mb-1">Receita Bruta</p>
+                    <p className="text-lg font-bold text-white">{formatCurrency(stats.total_revenue)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gray-800/50">
+                    <p className="text-xs text-gray-400 mb-1">Taxa % (0,70%)</p>
+                    <p className="text-lg font-bold text-orange-400">-{formatCurrency(mpFees.percentFee)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gray-800/50">
+                    <p className="text-xs text-gray-400 mb-1">Taxa Fixa (×{stats.approved_count})</p>
+                    <p className="text-lg font-bold text-orange-400">-{formatCurrency(mpFees.fixedFee)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gray-800/50">
+                    <p className="text-xs text-gray-400 mb-1">Total Taxas MP</p>
+                    <p className="text-lg font-bold text-orange-500">-{formatCurrency(mpFees.totalFees)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                    <p className="text-xs text-emerald-300 mb-1">💰 Líquido Final</p>
+                    <p className="text-lg font-bold text-emerald-400">{formatCurrency(mpFees.netRevenue)}</p>
+                  </div>
+                </div>
+              )
+            })()}
+          </motion.div>
         )}
 
         {/* Tabs */}

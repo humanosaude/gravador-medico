@@ -1,6 +1,10 @@
 'use client'
 
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, CreditCard, Users, ShoppingBag } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, CreditCard, Users, ShoppingBag, Percent } from 'lucide-react'
+
+// Constantes de taxas do Mercado Pago
+const MP_PIX_FEE_PERCENT = 0.70 // 0,70% do valor
+const MP_PIX_FEE_FIXED = 0.25 // R$ 0,25 fixo por transação
 
 interface BigNumberProps {
   title: string
@@ -69,6 +73,7 @@ interface BigNumbersProps {
     paid_sales?: number
     pending_sales?: number
     sales: number
+    pix_sales?: number // Quantidade de vendas PIX para calcular taxa fixa
     unique_visitors?: number
     conversion_rate: number
     average_order_value: number
@@ -80,6 +85,25 @@ interface BigNumbersProps {
   }
   loading?: boolean
   periodLabel?: string
+}
+
+// Função para calcular taxas do Mercado Pago (PIX)
+function calculateMPFees(revenue: number, pixSalesCount: number) {
+  // Taxa percentual: 0,70% do valor
+  const percentFee = revenue * (MP_PIX_FEE_PERCENT / 100)
+  // Taxa fixa: R$ 0,25 por transação PIX
+  const fixedFee = pixSalesCount * MP_PIX_FEE_FIXED
+  // Total de taxas
+  const totalFees = percentFee + fixedFee
+  // Valor líquido
+  const netRevenue = revenue - totalFees
+  
+  return {
+    percentFee,
+    fixedFee,
+    totalFees,
+    netRevenue
+  }
 }
 
 export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbersProps) {
@@ -98,6 +122,11 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
 
   const periodText = periodLabel || 'últimos 30 dias'
 
+  // Calcular taxas do Mercado Pago
+  // Usa paid_sales como quantidade de transações PIX (assumindo que todas vendas pagas são PIX)
+  const pixSalesCount = metrics?.pix_sales ?? metrics?.paid_sales ?? metrics?.sales ?? 0
+  const mpFees = calculateMPFees(metrics?.revenue ?? 0, pixSalesCount)
+
   // Previne erro se metrics estiver null
   if (!metrics) {
     return (
@@ -113,10 +142,10 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
 
   return (
     <div className="space-y-4">
-      {/* Faturamento com detalhes */}
-      {metrics.gross_revenue !== undefined && metrics.revenue > 0 && (
+      {/* Faturamento Completo com Taxas MP */}
+      {metrics.revenue > 0 && (
         <div className="bg-gradient-to-br from-brand-500/10 to-brand-600/5 rounded-xl border border-brand-500/20 p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
               <div className="text-xs font-medium text-gray-400 mb-1">Faturamento Bruto</div>
               <div className="text-xl font-bold text-white">{formatCurrency(metrics.gross_revenue || metrics.revenue || 0)}</div>
@@ -126,8 +155,17 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
               <div className="text-xl font-bold text-red-400">-{formatCurrency(metrics.total_discount || 0)}</div>
             </div>
             <div>
-              <div className="text-xs font-medium text-gray-400 mb-1">Faturamento Líquido</div>
-              <div className="text-xl font-bold text-brand-400">{formatCurrency(metrics.revenue || 0)}</div>
+              <div className="text-xs font-medium text-gray-400 mb-1">Taxa MP PIX (0,70%)</div>
+              <div className="text-xl font-bold text-orange-400">-{formatCurrency(mpFees.percentFee)}</div>
+              <div className="text-[10px] text-gray-500">+ R$ 0,25 × {pixSalesCount} = -{formatCurrency(mpFees.fixedFee)}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-gray-400 mb-1">Total Taxas MP</div>
+              <div className="text-xl font-bold text-orange-500">-{formatCurrency(mpFees.totalFees)}</div>
+            </div>
+            <div className="bg-brand-500/10 rounded-lg p-2">
+              <div className="text-xs font-medium text-brand-300 mb-1">💰 Faturamento Líquido</div>
+              <div className="text-xl font-bold text-brand-400">{formatCurrency(mpFees.netRevenue)}</div>
             </div>
           </div>
         </div>
@@ -164,8 +202,8 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <BigNumberCard
-          title={metrics.gross_revenue ? "Faturamento Líquido" : "Faturamento Bruto"}
-          value={formatCurrency(metrics.revenue || 0)}
+          title="💰 Líquido (após taxas MP)"
+          value={formatCurrency(mpFees.netRevenue || 0)}
           delta={metrics.revenue_change || 0}
           deltaText="vs período anterior"
           icon={<DollarSign className="w-5 h-5" />}
