@@ -32,6 +32,7 @@ const periodOptions = [
 ];
 
 const sortOptions = [
+  { value: 'status_date', label: 'Ativos + Recentes' },
   { value: 'spend_desc', label: 'Maior gasto' },
   { value: 'conversions_desc', label: 'Mais conversões' },
   { value: 'ctr_desc', label: 'Melhor CTR' },
@@ -42,7 +43,7 @@ export default function CriativosPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('last_7d');
-  const [sortBy, setSortBy] = useState('spend_desc');
+  const [sortBy, setSortBy] = useState('status_date');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const fetchData = useCallback(async (showRefresh = false) => {
@@ -65,10 +66,21 @@ export default function CriativosPage() {
     fetchData();
   }, [selectedPeriod, fetchData]);
 
-  // Ordenar ads
+  // Ordenar ads - prioriza ativos primeiro, depois por data mais recente
   const sortedAds = useMemo(() => {
     return [...ads].sort((a, b) => {
       switch (sortBy) {
+        case 'status_date':
+          // Primeiro: ativos antes de inativos
+          const aActive = (a as any).effective_status === 'ACTIVE' || (a as any).status === 'ACTIVE' ? 1 : 0;
+          const bActive = (b as any).effective_status === 'ACTIVE' || (b as any).status === 'ACTIVE' ? 1 : 0;
+          if (bActive !== aActive) return bActive - aActive;
+          // Depois: por data de criação/atualização (mais recente primeiro)
+          const aDate = new Date((a as any).created_time || (a as any).updated_time || 0).getTime();
+          const bDate = new Date((b as any).created_time || (b as any).updated_time || 0).getTime();
+          if (bDate !== aDate) return bDate - aDate;
+          // Fallback: maior gasto
+          return Number(b.spend || 0) - Number(a.spend || 0);
         case 'spend_desc': return Number(b.spend || 0) - Number(a.spend || 0);
         case 'conversions_desc': return Number((b as any).conversions || 0) - Number((a as any).conversions || 0);
         case 'ctr_desc': return Number(b.ctr || 0) - Number(a.ctr || 0);
