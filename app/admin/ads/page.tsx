@@ -338,6 +338,10 @@ export default function AdsPage() {
         totalOutboundClicks: 0,
         totalPurchases: 0,
         totalPurchaseValue: 0,
+        totalLeads: 0,
+        totalCheckoutComplete: 0,
+        cpl: 0,
+        costPerCheckout: 0,
         roas: 0,
         cpa: 0,
         campaigns: []
@@ -713,6 +717,15 @@ export default function AdsPage() {
     const fetchSalesToday = async () => {
       try {
         const { start, end } = getDateRangeFromPeriod('today');
+        
+        // Log para debug - remover depois
+        console.log('📅 Buscando vendas de hoje:', {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          startLocal: start.toLocaleString('pt-BR'),
+          endLocal: end.toLocaleString('pt-BR')
+        });
+        
         const params = new URLSearchParams({
           start: start.toISOString(),
           end: end.toISOString(),
@@ -727,11 +740,17 @@ export default function AdsPage() {
         
         const data = await res.json();
         const sales = Array.isArray(data) ? data : (data.sales || []);
+        
+        // Log para debug
+        console.log('📊 Vendas encontradas hoje:', sales.length);
+        
         const actualSales = sales.filter((s: any) => s.source === 'sale' || !s.source);
         const approvedStatuses = ['paid', 'approved', 'captured', 'completed'];
         const approved = actualSales.filter((s: any) => 
           approvedStatuses.includes((s.status || '').toLowerCase())
         );
+        
+        console.log('✅ Vendas aprovadas hoje:', approved.length, 'Total:', approved.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0));
         
         setSalesToday({
           totalSales: actualSales.length,

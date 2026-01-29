@@ -200,13 +200,18 @@ export async function getAdsInsights(
   const url = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/insights?` + new URLSearchParams(params);
 
   try {
-    const res = await fetch(url, { next: { revalidate: 60 } }); // Cache 1min para dados mais frescos
+    // Sem cache para dados do dia atual (podem mudar frequentemente)
+    const cacheOptions = datePreset === 'today' ? { cache: 'no-store' as RequestCache } : { next: { revalidate: 60 } };
+    const res = await fetch(url, cacheOptions);
     const data = await res.json();
     
     if (data.error) {
       console.error('❌ Erro na Meta Ads API:', data.error);
       return [];
     }
+    
+    // Log para debug
+    console.log(`📊 Meta Ads ${level} [${datePreset}]: ${data.data?.length || 0} resultados, timeRange:`, resolvedTimeRange);
     
     // Ordenar por spend decrescente
     const insights = data.data || [];
