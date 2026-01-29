@@ -582,15 +582,35 @@ export async function POST(request: NextRequest) {
     // 2. Nome do payload do webhook (pushName) - pode ser incorreto se from_me=true
     const bestPushName = fetchedPushName || pushName
     
+    // 🚫 LISTA DE NOMES QUE NÃO DEVEM SER SALVOS (nomes da instância/bot)
+    const BLOCKED_NAMES = [
+      'gravador medico',
+      'gravador médico',
+      'gravadormedico',
+      'assistente virtual',
+      'bot',
+      'atendimento',
+      'suporte'
+    ]
+    
+    // Verifica se o nome é bloqueado
+    const isBlockedName = (name?: string | null): boolean => {
+      if (!name) return true
+      return BLOCKED_NAMES.includes(name.toLowerCase().trim())
+    }
+    
     try {
       console.log(`🔍 [ANTES UPSERT] Contato: ${normalizedRemoteJid}, pushName webhook: "${pushName}", pushName API: "${fetchedPushName}", from_me: ${fromMeBoolean}`)
       
       // ⚠️ Só atualiza push_name se:
       // 1. A mensagem veio DO CLIENTE (não de mim), OU
       // 2. O nome foi obtido via API (fetchedPushName) - sempre confiável
+      // 3. E o nome NÃO É um nome bloqueado (instância/bot)
       const shouldUpdatePushName = 
-        (fetchedPushName && fetchedPushName !== 'Assistente Virtual') ||
-        (!fromMeBoolean && bestPushName && bestPushName !== 'Assistente Virtual')
+        !isBlockedName(bestPushName) && (
+          (fetchedPushName && !isBlockedName(fetchedPushName)) ||
+          (!fromMeBoolean && bestPushName)
+        )
       
       const contactData = {
         remote_jid: normalizedRemoteJid,

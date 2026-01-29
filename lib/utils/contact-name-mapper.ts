@@ -14,13 +14,24 @@ const CONTACT_NAME_OVERRIDES: Record<string, string> = {
   // 'Nome Errado': 'Nome Correto',
 }
 
+// 🚫 LISTA DE NOMES QUE DEVEM MOSTRAR O NÚMERO (nomes da instância/bot)
+const BLOCKED_NAMES = [
+  'gravador medico',
+  'gravador médico',
+  'gravadormedico',
+  'assistente virtual',
+  'bot',
+  'atendimento',
+  'suporte'
+]
+
 /**
  * Aplica mapeamento de nomes personalizados
  * Se o push_name estiver na lista de overrides, retorna o nome correto
  * Caso contrário, retorna o push_name ou formata o número
  * 
- * NOTA: Se push_name for "Assistente Virtual" (nome incorreto do passado),
- * agora usamos o número formatado ao invés de mapear para um nome fixo
+ * NOTA: Se push_name for um nome bloqueado (instância/bot),
+ * usamos o número formatado ao invés
  */
 export function getDisplayContactName(
   pushName?: string | null,
@@ -31,9 +42,10 @@ export function getDisplayContactName(
     return formatPhoneNumber(remoteJid || '')
   }
   
-  // ⚠️ Se o nome é "Assistente Virtual" (bug antigo), mostrar o número formatado
+  // ⚠️ Se o nome está na lista de bloqueados, mostrar o número formatado
   // Isso evita que todos os contatos apareçam com o mesmo nome
-  if (pushName === 'Assistente Virtual') {
+  const normalizedName = pushName.toLowerCase().trim()
+  if (BLOCKED_NAMES.includes(normalizedName)) {
     return formatPhoneNumber(remoteJid || '')
   }
 

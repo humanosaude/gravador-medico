@@ -91,8 +91,41 @@ export async function getWhatsAppContact(remoteJid: string): Promise<WhatsAppCon
 
 /**
  * Cria ou atualiza um contato
+ * ⚠️ IMPORTANTE: Não sobrescreve push_name com valores inválidos
  */
 export async function upsertWhatsAppContact(input: UpdateContactInput): Promise<WhatsAppContact> {
+  // 🚫 LISTA DE NOMES QUE NÃO DEVEM SER SALVOS (nomes da instância/bot)
+  const BLOCKED_NAMES = [
+    'gravador medico',
+    'gravador médico',
+    'gravadormedico',
+    'assistente virtual',
+    'bot',
+    'atendimento',
+    'suporte'
+  ]
+  
+  // Verifica se o nome é bloqueado
+  const isBlockedName = (name?: string | null): boolean => {
+    if (!name) return true
+    return BLOCKED_NAMES.includes(name.toLowerCase().trim())
+  }
+  
+  // Se o push_name é bloqueado, não salva
+  const safePushName = isBlockedName(input.push_name) ? undefined : input.push_name
+  
+  // Se não tem push_name válido, buscar o contato existente para preservar
+  let existingPushName: string | null = null
+  if (!safePushName) {
+    const { data: existingContact } = await supabaseAdmin
+      .from('whatsapp_contacts')
+      .select('push_name')
+      .eq('remote_jid', input.remote_jid)
+      .single()
+    
+    existingPushName = existingContact?.push_name || null
+  }
+  
   const { data, error } = await supabaseAdmin
     .from('whatsapp_contacts')
     .upsert(
@@ -100,7 +133,8 @@ export async function upsertWhatsAppContact(input: UpdateContactInput): Promise<
         remote_jid: input.remote_jid,
         // ❌ REMOVIDO: name (não sobrescrever nomes personalizados)
         // Apenas atualiza push_name que vem do WhatsApp
-        push_name: input.push_name,
+        // ⚠️ Preserva push_name existente se o novo for inválido
+        push_name: safePushName || existingPushName || undefined,
         profile_picture_url: input.profile_picture_url,
         is_group: input.is_group || false
       },
