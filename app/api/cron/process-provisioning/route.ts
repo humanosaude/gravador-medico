@@ -29,12 +29,18 @@ export async function POST(request: NextRequest) {
     // =====================================================
     
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-me'
+    const cronSecret = process.env.CRON_SECRET || 'provisioning-2026'
+    const querySecret = new URL(request.url).searchParams.get('secret')
 
     // Vercel Cron adiciona automaticamente um header
     const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron')
     
-    if (!isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
+    // Aceitar: Vercel Cron, Authorization header, ou query param secret
+    const isAuthorized = isVercelCron || 
+                         authHeader === `Bearer ${cronSecret}` ||
+                         querySecret === cronSecret
+    
+    if (!isAuthorized) {
       console.warn('⚠️ Tentativa não autorizada de executar cron')
       
       return NextResponse.json({
