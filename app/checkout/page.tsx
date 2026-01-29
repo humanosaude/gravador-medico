@@ -87,8 +87,7 @@ export default function CheckoutPage() {
   const [cardData, setCardData] = useState({
     number: "",
     holderName: "",
-    expMonth: "",
-    expYear: "",
+    expiry: "", // Formato MM/AA
     cvv: "",
     installments: 1,
   })
@@ -473,7 +472,8 @@ export default function CheckoutPage() {
 
   const isStep3Valid = () => {
     if (paymentMethod === "pix") return true
-    return cardData.number && cardData.holderName && cardData.expMonth && cardData.expYear && cardData.cvv
+    // Verifica se expiry tem formato MM/AA (5 caracteres)
+    return cardData.number && cardData.holderName && cardData.expiry.length === 5 && cardData.cvv
   }
 
   const formatPaymentError = (error: any) => {
@@ -683,16 +683,14 @@ export default function CheckoutPage() {
       if (paymentMethod === 'credit') {
         console.log('🔐 Tokenizando cartão com Mercado Pago...')
         
-        // Garantir que o ano está em 2 dígitos para o MP
-        const expYear2Digits = cardData.expYear.length === 4 
-          ? cardData.expYear.slice(-2) // 2030 → 30
-          : cardData.expYear.padStart(2, '0') // 30 → 30, 5 → 05
+        // Extrair mês e ano do formato MM/AA
+        const [expMonth, expYear] = cardData.expiry.split('/')
         
         const token = await createCardToken({
           cardNumber: cardData.number,
           cardholderName: cardData.holderName || formData.name,
-          cardExpirationMonth: cardData.expMonth,
-          cardExpirationYear: expYear2Digits, // ✅ SEMPRE 2 dígitos
+          cardExpirationMonth: expMonth,
+          cardExpirationYear: expYear, // Já está em 2 dígitos (AA)
           securityCode: cardData.cvv,
           identificationType: formData.documentType, // CPF ou CNPJ
           identificationNumber: formData.cpf,
@@ -710,8 +708,8 @@ export default function CheckoutPage() {
           card_data: {
             number: cardData.number.replace(/\s/g, ''),
             holder_name: cardData.holderName || formData.name,
-            exp_month: cardData.expMonth,
-            exp_year: cardData.expYear.length === 2 ? `20${cardData.expYear}` : cardData.expYear, // AppMax aceita 4 dígitos
+            exp_month: expMonth,
+            exp_year: `20${expYear}`, // AppMax aceita 4 dígitos (20AA)
             cvv: cardData.cvv,
             installments: cardData.installments || 1,
           },
@@ -1415,37 +1413,27 @@ export default function CheckoutPage() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-bold text-gray-900 mb-2">
-                              Mês *
+                              Validade *
                             </label>
                             <input
                               type="text"
-                              name="cc-exp-month"
-                              autoComplete="cc-exp-month"
-                              value={cardData.expMonth}
-                              onChange={(e) => setCardData({ ...cardData, expMonth: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                              name="cc-exp"
+                              autoComplete="cc-exp"
+                              value={cardData.expiry}
+                              onChange={(e) => {
+                                // Formatar como MM/AA
+                                let value = e.target.value.replace(/\D/g, '').slice(0, 4)
+                                if (value.length >= 2) {
+                                  value = value.slice(0, 2) + '/' + value.slice(2)
+                                }
+                                setCardData({ ...cardData, expiry: value })
+                              }}
                               className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
-                              placeholder="12"
-                              maxLength={2}
-                              required
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2">
-                              Ano *
-                            </label>
-                            <input
-                              type="text"
-                              name="cc-exp-year"
-                              autoComplete="cc-exp-year"
-                              value={cardData.expYear}
-                              onChange={(e) => setCardData({ ...cardData, expYear: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition-colors"
-                              placeholder="2028"
-                              maxLength={4}
+                              placeholder="MM/AA"
+                              maxLength={5}
                               required
                             />
                           </div>
