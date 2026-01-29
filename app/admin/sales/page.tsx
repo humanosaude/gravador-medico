@@ -306,7 +306,6 @@ export default function SalesPage() {
         throw new Error(data.error || 'Erro ao excluir venda')
       }
 
-      // Remover da lista local
       setSales(prev => prev.filter(s => s.id !== saleId))
       setShowDrawer(false)
       alert('Venda excluída do dashboard com sucesso!')
@@ -318,7 +317,7 @@ export default function SalesPage() {
     }
   }
 
-  const handleRefund = async (sale: Sale) {
+  const handleRefund = async (sale: Sale) => {
     const saleId = sale.sale_id || (sale.source === 'sale' ? sale.id : null)
     if (!saleId) {
       alert('Este pedido nao possui venda confirmada para estorno.')
