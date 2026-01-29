@@ -73,22 +73,52 @@ export default function AdminDashboard() {
       return { start, end };
     }
 
+    const now = new Date();
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - Math.max(quickDays - 1, 0));
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    
+    // Tratamento especial para "Hoje" (quickDays = 0) e "Ontem" (quickDays = 1)
+    if (quickDays === 0) {
+      // Hoje: do início de hoje até agora
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else if (quickDays === 1) {
+      // Ontem: do início de ontem até o fim de ontem
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      // Outros períodos: últimos N dias incluindo hoje
+      start.setDate(start.getDate() - (quickDays - 1));
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    }
+    
     return { start, end };
   }, [filterType, quickDays, startDate, endDate]);
+
+  // Helper para formatar data no padrão YYYY-MM-DD (sem timezone)
+  const formatDateForAPI = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Carregar dados de Analytics e META Ads
   const loadAnalyticsData = useCallback(async () => {
     setAnalyticsLoading(true);
     try {
       const { start, end } = resolveMetaAdsRange();
+      
+      // Usar formato YYYY-MM-DD para evitar problemas de timezone
+      const startDateStr = formatDateForAPI(start);
+      const endDateStr = formatDateForAPI(end);
+      
       const metaParams = new URLSearchParams({
-        start: start.toISOString(),
-        end: end.toISOString()
+        start: startDateStr,
+        end: endDateStr
       });
 
       const [realtimeRes, trafficRes, fbRes] = await Promise.allSettled([
