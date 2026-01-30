@@ -296,7 +296,7 @@ export default function CheckoutPage() {
         console.log('📡 Status da conexão Realtime:', status)
       })
 
-    // 2️⃣ POLLING DE SEGURANÇA (Fallback a cada 3 segundos)
+    // 2️⃣ POLLING DE SEGURANÇA (Fallback a cada 5 segundos - menos agressivo)
     // 🔥 Usa API dedicada para garantir acesso aos dados
     const pollingInterval = setInterval(async () => {
       console.log('🔍 Polling: Verificando status do pagamento via API...')
@@ -327,7 +327,7 @@ export default function CheckoutPage() {
       } catch (err) {
         console.error('❌ Erro no polling:', err)
       }
-    }, 3000) // Verifica a cada 3 segundos
+    }, 5000) // Verifica a cada 5 segundos (menos agressivo para evitar rate limit)
 
     // Cleanup ao desmontar
     return () => {
@@ -1969,14 +1969,14 @@ export default function CheckoutPage() {
             className="fixed inset-0 bg-white z-40 overflow-y-auto"
           >
             {/* Conteúdo PIX - Estilo Kirvano */}
-            <div className="min-h-screen pt-16 pb-8 px-4">
+            <div className="min-h-screen pt-24 pb-8 px-4">
               <div className="container mx-auto max-w-md">
                 
                 {/* QR Code no topo */}
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center mb-6 mt-4"
+                  className="flex flex-col items-center mb-6 mt-8"
                 >
                   <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm mb-4">
                     <img
