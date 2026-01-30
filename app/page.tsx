@@ -766,7 +766,7 @@ export default function LandingPage() {
                         <span className="text-lg md:text-xl text-gray-700 font-semibold">Por apenas:</span>
                         <span className="text-4xl md:text-5xl font-black text-gray-900">R$ 36</span>
                       </div>
-                      <p className="text-gray-600 text-sm md:text-base">Pagamento único ou 8x de R$ 5,40</p>
+                      <p className="text-gray-600 text-sm md:text-base">Pagamento único ou 7x de R$ 5,14</p>
                     </div>
 
                     {/* Lista de benefícios */}
@@ -2344,7 +2344,7 @@ export default function LandingPage() {
                       <span className="text-lg md:text-xl text-gray-700 font-semibold">Por apenas:</span>
                       <span className="text-4xl md:text-5xl font-black text-gray-900">R$ 36</span>
                     </div>
-                    <p className="text-gray-600 text-sm md:text-base">Pagamento único ou 8x de R$ 5,40</p>
+                    <p className="text-gray-600 text-sm md:text-base">Pagamento único ou 7x de R$ 5,14</p>
                   </div>
 
                   {/* Lista de benefícios */}
