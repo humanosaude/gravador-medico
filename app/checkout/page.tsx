@@ -278,44 +278,21 @@ export default function CheckoutPage() {
       })
 
     // 2️⃣ POLLING DE SEGURANÇA (Fallback a cada 3 segundos)
-    // 🔥 CORREÇÃO: Buscar por `id` (UUID) para funcionar com MP e AppMax
+    // 🔥 Usa API dedicada para garantir acesso aos dados
     const pollingInterval = setInterval(async () => {
-      console.log('🔍 Polling: Verificando status do pagamento...')
+      console.log('🔍 Polling: Verificando status do pagamento via API...')
       
       try {
-        // Tenta primeiro pelo ID (UUID) - usado por Mercado Pago Enterprise
-        let data, error
+        const response = await fetch(`/api/checkout/check-payment?order_id=${pixData.orderId}`)
+        const result = await response.json()
         
-        const result1 = await supabase
-          .from('sales')
-          .select('status, id')
-          .eq('id', pixData.orderId)
-          .maybeSingle()
-        
-        if (result1.data) {
-          data = result1.data
-          error = result1.error
-        } else {
-          // Fallback: tenta por appmax_order_id (para pedidos AppMax)
-          const result2 = await supabase
-            .from('sales')
-            .select('status, id')
-            .eq('appmax_order_id', pixData.orderId)
-            .maybeSingle()
-          
-          data = result2.data
-          error = result2.error
-        }
+        console.log('📊 Polling resultado:', result)
 
-        if (!data) {
-          console.log('⚠️ Polling: Pedido ainda não encontrado no banco')
-          return
-        }
-
-        console.log('📊 Polling: Status atual =', data?.status)
-
-        if (data?.status === 'paid' || data?.status === 'approved') {
+        if (result.is_paid) {
           console.log('✅ Pagamento APROVADO via Polling! Redirecionando...')
+          
+          // Para o interval imediatamente
+          clearInterval(pollingInterval)
           
           // 🎯 Remover carrinho abandonado ao confirmar pagamento
           await markCartAsRecovered(pixData.orderId)
@@ -325,6 +302,8 @@ export default function CheckoutPage() {
           
           // Redireciona para página de obrigado
           router.push(`/obrigado?email=${encodeURIComponent(formData.email)}&order_id=${pixData.orderId}`)
+        } else {
+          console.log(`📊 Polling: Status atual = ${result.status} (aguardando pagamento)`)
         }
       } catch (err) {
         console.error('❌ Erro no polling:', err)
