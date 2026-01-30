@@ -98,7 +98,11 @@ export default function CheckoutPage() {
     qrCode: string
     emv: string
     orderId: string
+    expiresAt?: number // Timestamp de expiração
   } | null>(null)
+  
+  // Contador de tempo do PIX (30 minutos = 1800 segundos)
+  const [pixTimeLeft, setPixTimeLeft] = useState(30 * 60)
 
   // Depoimentos carousel
   const [emblaRef] = useEmblaCarousel(
@@ -208,13 +212,33 @@ export default function CheckoutPage() {
     return () => clearTimeout(timer)
   }, [loadDraft])
 
-  // Countdown timer
+  // Countdown timer (oferta)
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0))
     }, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // 🕐 PIX COUNTDOWN: Contador de tempo para expiração do PIX
+  useEffect(() => {
+    if (!pixData) return // Só ativa quando PIX for gerado
+    
+    // Reseta o contador quando um novo PIX é gerado
+    setPixTimeLeft(30 * 60)
+    
+    const pixTimer = setInterval(() => {
+      setPixTimeLeft((prev) => {
+        if (prev <= 0) {
+          clearInterval(pixTimer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    
+    return () => clearInterval(pixTimer)
+  }, [pixData?.orderId]) // Reinicia quando novo PIX é gerado
 
   // 🎯 REALTIME + POLLING: Escuta pagamento aprovado no Supabase
   useEffect(() => {
@@ -223,6 +247,7 @@ export default function CheckoutPage() {
     console.log('👂 Escutando pagamento do pedido:', pixData.orderId)
 
     // 1️⃣ Realtime (WebSocket - Método principal)
+    // 🔥 CORREÇÃO: Buscar por `id` (UUID) pois é isso que o /api/checkout/enterprise retorna
     const channel = supabase
       .channel(`payment-${pixData.orderId}`)
       .on(
@@ -231,7 +256,7 @@ export default function CheckoutPage() {
           event: '*', // Escuta INSERT, UPDATE e DELETE
           schema: 'public',
           table: 'sales',
-          filter: `appmax_order_id=eq.${pixData.orderId}`,
+          filter: `id=eq.${pixData.orderId}`,
         },
         (payload: any) => {
           console.log('🔔 Mudança detectada no banco:', payload)
@@ -253,17 +278,36 @@ export default function CheckoutPage() {
       })
 
     // 2️⃣ POLLING DE SEGURANÇA (Fallback a cada 3 segundos)
+    // 🔥 CORREÇÃO: Buscar por `id` (UUID) para funcionar com MP e AppMax
     const pollingInterval = setInterval(async () => {
       console.log('🔍 Polling: Verificando status do pagamento...')
       
       try {
-        const { data, error } = await supabase
+        // Tenta primeiro pelo ID (UUID) - usado por Mercado Pago Enterprise
+        let data, error
+        
+        const result1 = await supabase
           .from('sales')
-          .select('status')
-          .eq('appmax_order_id', pixData.orderId)
-          .single()
+          .select('status, id')
+          .eq('id', pixData.orderId)
+          .maybeSingle()
+        
+        if (result1.data) {
+          data = result1.data
+          error = result1.error
+        } else {
+          // Fallback: tenta por appmax_order_id (para pedidos AppMax)
+          const result2 = await supabase
+            .from('sales')
+            .select('status, id')
+            .eq('appmax_order_id', pixData.orderId)
+            .maybeSingle()
+          
+          data = result2.data
+          error = result2.error
+        }
 
-        if (error) {
+        if (!data) {
           console.log('⚠️ Polling: Pedido ainda não encontrado no banco')
           return
         }
@@ -1984,13 +2028,32 @@ export default function CheckoutPage() {
                     </p>
                   </div>
 
+                  {/* ⏱️ CONTADOR DE EXPIRAÇÃO PIX */}
+                  <div className={`rounded-2xl p-4 mb-6 text-center ${pixTimeLeft <= 300 ? 'bg-red-100 border-2 border-red-300' : 'bg-amber-100 border-2 border-amber-300'}`}>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Clock className={`w-6 h-6 ${pixTimeLeft <= 300 ? 'text-red-600 animate-pulse' : 'text-amber-600'}`} />
+                      <span className={`text-lg font-black ${pixTimeLeft <= 300 ? 'text-red-700' : 'text-amber-700'}`}>
+                        {pixTimeLeft <= 0 ? (
+                          'PIX EXPIRADO'
+                        ) : (
+                          <>
+                            Expira em {String(Math.floor(pixTimeLeft / 60)).padStart(2, '0')}:{String(pixTimeLeft % 60).padStart(2, '0')}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    <p className={`text-sm ${pixTimeLeft <= 300 ? 'text-red-600' : 'text-amber-600'}`}>
+                      {pixTimeLeft <= 0 ? 'Gere um novo PIX para continuar' : 'Complete o pagamento antes do tempo acabar'}
+                    </p>
+                  </div>
+
                   {/* Informações */}
                   <div className="bg-brand-50 rounded-2xl p-6 space-y-3">
                     <div className="flex items-start gap-3">
-                      <Clock className="w-5 h-5 text-brand-600 flex-shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-bold text-gray-900">Pagamento expira em 30 minutos</p>
-                        <p className="text-sm text-gray-600">Após o pagamento, seu acesso é liberado automaticamente</p>
+                        <p className="font-bold text-gray-900">Pagamento detectado automaticamente</p>
+                        <p className="text-sm text-gray-600">Assim que pagar, você será redirecionado</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">

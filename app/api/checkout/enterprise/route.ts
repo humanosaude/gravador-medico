@@ -622,15 +622,20 @@ export async function POST(request: NextRequest) {
     console.log(`   appmax_data exists: ${!!appmax_data}`)
     console.log(`   shouldTryAppmax: ${shouldTryAppmax}`)
     console.log(`   mpTriedAndFailed: ${mpTriedAndFailed}`)
+    console.log(`   payment_method: ${payment_method}`)
 
-    // 🔥 CORREÇÃO: Só tenta AppMax se MP falhou OU se não tinha token MP
-    const shouldUseAppmax = appmax_data && (shouldTryAppmax || !mpToken)
+    // 🔥 CORREÇÃO: AppMax é APENAS para cartão de crédito como fallback
+    // PIX é exclusivamente Mercado Pago - AppMax não deve processar PIX
+    const shouldUseAppmax = appmax_data && 
+                            payment_method === 'credit_card' && 
+                            (shouldTryAppmax || !mpToken)
 
     if (shouldUseAppmax) {
-      console.log('💳 [2/2] Tentando AppMax (fallback)...')
+      console.log('💳 [2/2] Tentando AppMax (fallback para cartão)...')
       const appmaxStartTime = Date.now()
       
       // Preparar payload para log
+      // AppMax é APENAS para cartão de crédito, nunca PIX
       const appmaxPayload = {
         customer: {
           name: customer.name,
@@ -640,7 +645,7 @@ export async function POST(request: NextRequest) {
         },
         product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
         quantity: 1,
-        payment_method: appmax_data.payment_method === 'credit_card' ? 'credit_card' : 'pix',
+        payment_method: 'credit_card', // AppMax só processa cartão como fallback
         card_data: appmax_data.card_data ? {
           ...appmax_data.card_data,
           number: appmax_data.card_data.number ? `****${appmax_data.card_data.number.slice(-4)}` : null,
@@ -654,11 +659,12 @@ export async function POST(request: NextRequest) {
         console.log(' FALLBACK ACIONADO - Mercado Pago falhou ou recusou')
         console.log('📦 Dados AppMax recebidos:', {
           has_card_data: !!appmax_data.card_data,
-          payment_method: appmax_data.payment_method,
+          payment_method: 'credit_card', // Sempre cartão (fallback)
           order_bumps_count: appmax_data.order_bumps?.length || 0
         })
 
         // Usar a função correta do lib/appmax.ts
+        // AppMax é APENAS fallback para cartão de crédito - PIX é exclusivo MP
         const appmaxResult = await createAppmaxOrder({
           customer: {
             name: customer.name,
@@ -668,7 +674,7 @@ export async function POST(request: NextRequest) {
           },
           product_id: process.env.APPMAX_PRODUCT_ID || '32991339',
           quantity: 1,
-          payment_method: appmax_data.payment_method === 'credit_card' ? 'credit_card' : 'pix',
+          payment_method: 'credit_card', // Sempre cartão - AppMax não processa PIX
           card_data: appmax_data.card_data,
           order_bumps: appmax_data.order_bumps || [],
           discount: body.discount || 0,
