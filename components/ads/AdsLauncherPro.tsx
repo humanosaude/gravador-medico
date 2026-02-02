@@ -4,10 +4,11 @@
 // ADS LAUNCHER PRO - COCKPIT DE CONTROLE PROFISSIONAL
 // =====================================================
 // Interface avançada para criação de campanhas com:
-// - Configuração de IA (GPT-4o)
+// - Configuração de IA (GPT-5.2)
 // - Meta Advantage+ vs Segmentação Manual
 // - Estratégias de Público (Lookalike, Remarketing, etc)
 // - Pipeline assíncrono de vídeos
+// - Sistema de 2 Etapas: Gerar Prompt → Publicar
 // =====================================================
 
 import { useState, useCallback, useRef } from 'react';
@@ -160,6 +161,11 @@ export default function AdsLauncherPro() {
   const [previewReady, setPreviewReady] = useState(false);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
 
+  // Estados do Sistema de 2 Etapas (Meta-Prompt)
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+  const [promptGenerated, setPromptGenerated] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // =====================================================
@@ -210,6 +216,48 @@ export default function AdsLauncherPro() {
     // Reset preview quando arquivos mudam
     setPreviewReady(false);
     setPreviews([]);
+  };
+
+  // =====================================================
+  // SISTEMA DE 2 ETAPAS: GERAR PROMPT COM IA
+  // =====================================================
+
+  const handleGeneratePrompt = async () => {
+    if (!objective.trim()) return;
+
+    setIsGeneratingPrompt(true);
+    
+    try {
+      const response = await fetch('/api/ads/generate-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          objective,
+          funnelStage,
+          audienceStrategy,
+          targetAudience: 'Profissionais da saúde',
+          productName: 'Gravador Médico',
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success && data.prompt) {
+        setGeneratedPrompt(data.prompt);
+        setPromptGenerated(true);
+      } else {
+        // Fallback com prompt básico
+        setGeneratedPrompt(`Crie 3 anúncios persuasivos para: ${objective}\n\nFoco: ${funnelStage === 'TOPO' ? 'Awareness e alcance' : funnelStage === 'MEIO' ? 'Engajamento e consideração' : 'Conversão e vendas'}\n\nPúblico: Profissionais da saúde interessados em otimização de tempo`);
+        setPromptGenerated(true);
+      }
+    } catch (error) {
+      console.error('Erro ao gerar prompt:', error);
+      // Fallback
+      setGeneratedPrompt(`Crie 3 anúncios persuasivos para: ${objective}\n\nFoco: ${funnelStage === 'TOPO' ? 'Awareness e alcance' : funnelStage === 'MEIO' ? 'Engajamento e consideração' : 'Conversão e vendas'}`);
+      setPromptGenerated(true);
+    } finally {
+      setIsGeneratingPrompt(false);
+    }
   };
 
   // =====================================================
@@ -330,7 +378,7 @@ export default function AdsLauncherPro() {
   };
 
   // =====================================================
-  // SUBMISSÃO
+  // SUBMISSÃO (ETAPA 2)
   // =====================================================
 
   const handleLaunch = async () => {
@@ -348,6 +396,11 @@ export default function AdsLauncherPro() {
       formData.append('status', publishStatus);
       formData.append('funnel_stage', funnelStage);
       if (linkUrl) formData.append('linkUrl', linkUrl);
+
+      // Prompt gerado na Etapa 1 (se existir)
+      if (promptGenerated && generatedPrompt) {
+        formData.append('customPrompt', generatedPrompt);
+      }
 
       // Targeting
       formData.append('use_advantage_plus', String(useAdvantagePlus));
@@ -397,6 +450,8 @@ export default function AdsLauncherPro() {
     setDailyBudget('30');
     setStatus('idle');
     setResult(null);
+    setGeneratedPrompt('');
+    setPromptGenerated(false);
   };
 
   const isProcessing = ['uploading', 'generating', 'creating'].includes(status);
@@ -421,7 +476,7 @@ export default function AdsLauncherPro() {
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg backdrop-blur">
             <Brain className="w-5 h-5 text-green-300" />
-            <span className="text-white font-medium">GPT-4o Ativo</span>
+            <span className="text-white font-medium">GPT-5.2 Vision</span>
           </div>
         </div>
       </div>
@@ -445,7 +500,7 @@ export default function AdsLauncherPro() {
               <div>
                 <p className="text-lg font-semibold text-purple-100">
                   {status === 'uploading' && '📤 Enviando arquivos...'}
-                  {status === 'generating' && '🤖 GPT-4o gerando copys otimizadas...'}
+                  {status === 'generating' && '🤖 GPT-5.2 Vision gerando copys otimizadas...'}
                   {status === 'creating' && '🚀 Criando campanha no Meta...'}
                 </p>
                 <p className="text-purple-300">
@@ -634,16 +689,86 @@ export default function AdsLauncherPro() {
                 <Target className="w-5 h-5 text-purple-400" />
                 <h3 className="font-semibold text-white">Objetivo da Campanha</h3>
               </div>
-              <div className="p-6">
+              <div className="p-6 space-y-4">
                 <input
                   type="text"
                   value={objective}
-                  onChange={(e) => setObjective(e.target.value)}
+                  onChange={(e) => {
+                    setObjective(e.target.value);
+                    // Reset prompt quando objetivo muda
+                    setPromptGenerated(false);
+                    setGeneratedPrompt('');
+                  }}
                   placeholder="Ex: Venda do Gravador Médico para Cardiologistas"
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
-                <p className="text-sm text-gray-400 mt-2">
-                  A IA usará isso para gerar copys persuasivas com GPT-4o
+                
+                {/* Botão Gerar Prompt com IA */}
+                <button
+                  onClick={handleGeneratePrompt}
+                  disabled={!objective.trim() || isGeneratingPrompt}
+                  className={cn(
+                    'w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all',
+                    objective.trim() && !isGeneratingPrompt
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  )}
+                >
+                  {isGeneratingPrompt ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      GPT-5.2 gerando prompt profissional...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      🎯 Gerar Prompt com IA (Etapa 1)
+                    </>
+                  )}
+                </button>
+
+                {/* Área do Prompt Gerado - Editável */}
+                <AnimatePresence>
+                  {promptGenerated && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-green-400 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4" />
+                          Prompt Gerado - Edite se necessário:
+                        </label>
+                        <button
+                          onClick={handleGeneratePrompt}
+                          disabled={isGeneratingPrompt}
+                          className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                        >
+                          <RefreshCcw className="w-3 h-3" />
+                          Regenerar
+                        </button>
+                      </div>
+                      <textarea
+                        value={generatedPrompt}
+                        onChange={(e) => setGeneratedPrompt(e.target.value)}
+                        rows={6}
+                        className="w-full px-4 py-3 bg-gray-800 border border-green-600/50 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                        placeholder="O prompt profissional aparecerá aqui..."
+                      />
+                      <p className="text-xs text-gray-500">
+                        💡 Você pode editar o prompt antes de publicar. Na Etapa 2, este prompt será usado para gerar as copys finais.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <p className="text-sm text-gray-400">
+                  {promptGenerated 
+                    ? '✅ Prompt pronto! Ajuste se quiser e clique em Publicar (Etapa 2)'
+                    : 'Digite o objetivo e clique para gerar um prompt profissional com GPT-5.2 Vision'
+                  }
                 </p>
               </div>
             </div>

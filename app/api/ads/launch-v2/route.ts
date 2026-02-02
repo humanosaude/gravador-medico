@@ -579,6 +579,9 @@ export async function POST(request: NextRequest) {
     let promptGeneratorResult: PromptGeneratorResult | null = null;
     const useVisionAnalysis = formData.get('use_vision_analysis') !== 'false'; // Default: true
     const useTwoLayerSystem = formData.get('use_two_layer_system') !== 'false'; // Default: true
+    
+    // 🎯 Prompt customizado gerado na Etapa 1 pelo usuário
+    const customPrompt = formData.get('customPrompt') as string | null;
 
     if (manualCopy) {
       // Copy manual fornecida pelo usuário
@@ -589,6 +592,43 @@ export async function POST(request: NextRequest) {
         primaryText: [manualCopy, manualCopy],
         headlines: [objective, `${objective} - Saiba Mais`],
       }));
+    } else if (customPrompt && uploadedImages.length > 0) {
+      // 🔥 NOVO: Prompt customizado da Etapa 1 (Sistema de 2 Etapas)
+      console.log('   🎯 Usando prompt customizado da Etapa 1...');
+      console.log('   📝 Prompt:', customPrompt.substring(0, 100) + '...');
+      
+      try {
+        // Usar o prompt customizado diretamente com Vision
+        const imageUrls = uploadedImages.map(img => img.url);
+        generatedCopies = await analyzeMultipleWithProfessionalPrompt(
+          imageUrls,
+          customPrompt
+        );
+        
+        console.log(`   ✅ ${generatedCopies.length} imagens analisadas com prompt customizado`);
+        
+        // Marcar que usou prompt customizado
+        generatedCopies = generatedCopies.map(copy => ({
+          ...copy,
+          metadata: {
+            ...copy.metadata,
+            customPromptUsed: true,
+            analysisType: 'professional_prompt' as const,
+          },
+        }));
+        
+      } catch (error) {
+        console.error('   ⚠️ Erro ao usar prompt customizado, usando fallback:', error);
+        // Fallback para sistema padrão
+        const imageAnalysisParams = uploadedImages.map(img => ({
+          mediaUrl: img.url,
+          mediaType: 'image' as const,
+          objective,
+          targetAudience,
+        }));
+        generatedCopies = await analyzeMultipleCreatives(imageAnalysisParams);
+      }
+      
     } else if (useTwoLayerSystem && uploadedImages.length > 0) {
       // 🔥 NOVO: Sistema de 2 Camadas de IA
       console.log('   🧠 [Camada 1] Gerando prompt profissional de copywriting...');
