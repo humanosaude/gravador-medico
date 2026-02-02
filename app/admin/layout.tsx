@@ -203,6 +203,40 @@ const demograficoItems = [
   },
 ]
 
+// Menu de AI Performance
+const aiPerformanceItems = [
+  { 
+    icon: LayoutDashboard, 
+    label: 'Dashboard IA', 
+    href: '/admin/ai',
+    badge: null
+  },
+  { 
+    icon: TrendingUp, 
+    label: 'Escala Automática', 
+    href: '/admin/ai/escala-automatica',
+    badge: null
+  },
+  { 
+    icon: Bell, 
+    label: 'Regras de Alerta', 
+    href: '/admin/ai/rules',
+    badge: null
+  },
+  { 
+    icon: Users, 
+    label: 'Públicos', 
+    href: '/admin/ai/audiences',
+    badge: null
+  },
+  { 
+    icon: Settings, 
+    label: 'Configurações Meta', 
+    href: '/admin/ai/settings',
+    badge: null
+  },
+]
+
 // Menu de Gestão (CRM, Clientes, Produtos, Cupons, Pagamentos, Relatórios)
 const gestaoItems = [
   { 
@@ -253,11 +287,11 @@ const menuItems = [
     highlight: true
   },
   
-  // 🧠 AI PERFORMANCE (Motor de IA para tráfego pago)
+  // 🧠 AI PERFORMANCE (Motor de IA para tráfego pago - com submenu)
   { 
-    icon: Brain, 
     label: 'AI Performance', 
-    href: '/admin/ai',
+    icon: Brain,
+    items: aiPerformanceItems,
     badge: 'IA',
     highlight: true
   },

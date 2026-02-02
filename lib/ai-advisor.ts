@@ -161,7 +161,7 @@ export async function analyzeCampaigns(
     const openai = getOpenAIClient();
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Mais barato e rápido, mas pode usar 'gpt-4o' para melhor qualidade
+      model: 'gpt-5.1-chat', // Modelo recomendado para produção (mais rápido e barato que gpt-5.2)
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: prompt }
@@ -212,7 +212,7 @@ Seja conciso e direto. Máximo 150 palavras.
     const openai = getOpenAIClient();
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-chat', // Modelo recomendado para produção
       messages: [
         { role: 'system', content: 'Você é um especialista em Facebook Ads. Responda em português brasileiro de forma concisa.' },
         { role: 'user', content: prompt }
@@ -258,7 +258,7 @@ Contexto das campanhas:
 
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-chat', // Modelo recomendado para produção
       messages,
       temperature: 0.7,
       max_tokens: 500

@@ -7,7 +7,7 @@ import {
   DollarSign, Eye, MousePointerClick, RefreshCw, Send, Sparkles,
   ChevronDown, ChevronUp, Award, XCircle, CheckCircle, Clock,
   Lightbulb, Rocket, Shield, BarChart3, PieChart, Activity,
-  MessageSquare, Bot, User, Copy, Check, Loader2, AlertCircle
+  MessageSquare, Bot, User, Copy, Check, Loader2, AlertCircle, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -533,6 +533,27 @@ export default function AIPerformancePage() {
         </div>
         
         <div className="flex items-center gap-3">
+          <a
+            href="/admin/ai/rules"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all"
+          >
+            <Bell className="h-4 w-4" />
+            Alertas
+          </a>
+          <a
+            href="/admin/ai/settings"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all"
+          >
+            <Shield className="h-4 w-4" />
+            Configurações
+          </a>
+          <a
+            href="/admin/ai/escala-automatica"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-medium hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg"
+          >
+            <Rocket className="h-4 w-4" />
+            Escala Automática
+          </a>
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}

@@ -69,7 +69,7 @@ export default async function RootLayout({
   const region = headersList.get('x-vercel-ip-country-region')
 
   return (
-    <html lang="pt-BR" className={plusJakartaSans.variable}>
+    <html lang="pt-BR" className={plusJakartaSans.variable} suppressHydrationWarning>
       <head>
         {/* Google tag (gtag.js) */}
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-QPXT7Q09T3"></script>

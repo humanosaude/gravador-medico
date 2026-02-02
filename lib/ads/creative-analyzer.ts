@@ -1,0 +1,534 @@
+// =====================================================
+// ANALISADOR MULTIMODAL DE CRIATIVOS
+// =====================================================
+// Usa GPT-5.2 Vision para imagens e Whisper + Vision para vídeos
+// Gera copy altamente contextualizada baseada no conteúdo real
+// =====================================================
+
+import OpenAI from 'openai';
+import type { GeneratedCopy } from './types';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// =====================================================
+// TIPOS
+// =====================================================
+
+interface CreativeAnalysisResult {
+  imageDescription: string;
+  audioTranscription?: string;
+  primaryTexts: string[];
+  headlines: string[];
+  analysisType: 'image' | 'video' | 'video_vision_only';
+}
+
+interface AnalyzeCreativeParams {
+  mediaUrl: string;
+  mediaType: 'image' | 'video';
+  objective: string;
+  targetAudience: string;
+  thumbnailUrl?: string; // Para vídeos
+  audioBuffer?: Buffer;  // Para transcrição Whisper
+}
+
+// =====================================================
+// TRANSCRIÇÃO DE VÍDEO (Whisper)
+// =====================================================
+
+/**
+ * Transcreve o áudio de um vídeo usando Whisper API
+ * @param audioBuffer - Buffer do arquivo de áudio/vídeo
+ * @param fileName - Nome do arquivo original
+ * @returns Transcrição do áudio ou null se falhar
+ */
+export async function transcribeVideoAudio(
+  audioBuffer: Buffer,
+  fileName: string
+): Promise<string | null> {
+  console.log(`🎤 Transcrevendo áudio: ${fileName}`);
+
+  try {
+    // Converter Buffer para Uint8Array para compatibilidade com Blob
+    const uint8Array = new Uint8Array(audioBuffer);
+    const blob = new Blob([uint8Array], { type: 'video/mp4' });
+    const file = new File([blob], fileName, { type: 'video/mp4' });
+
+    const transcription = await openai.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+      language: 'pt', // Português
+      response_format: 'text',
+    });
+
+    console.log(`✅ Transcrição obtida: ${transcription.substring(0, 100)}...`);
+    return transcription;
+  } catch (error) {
+    console.error('❌ Erro na transcrição Whisper:', error);
+    
+    // Verificar se é erro de tamanho (limite de 25MB)
+    if (error instanceof Error && error.message.includes('too large')) {
+      console.log('⚠️ Arquivo muito grande para Whisper (>25MB)');
+    }
+    
+    return null;
+  }
+}
+
+// =====================================================
+// ANÁLISE VISUAL (GPT-5.2 Vision)
+// =====================================================
+
+/**
+ * Analisa uma imagem e gera copy contextualizada
+ * @param imageUrl - URL pública da imagem
+ * @param objective - Objetivo da campanha
+ * @param targetAudience - Público-alvo
+ * @returns Descrição da imagem + copies geradas
+ */
+export async function analyzeImageForCopy(
+  imageUrl: string,
+  objective: string,
+  targetAudience: string
+): Promise<CreativeAnalysisResult> {
+  console.log(`👁️ Analisando imagem com Vision: ${imageUrl.substring(0, 50)}...`);
+
+  const systemPrompt = `Você é um copywriter especialista em anúncios de alta conversão para Facebook/Instagram.
+Sua missão é analisar a imagem fornecida e criar textos de anúncio ALTAMENTE CONTEXTUALIZADOS.
+
+IMPORTANTE: Suas copies devem fazer referência DIRETA ao que aparece na imagem.
+- Se há uma pessoa, descreva características relevantes
+- Se há um produto, destaque-o
+- Se há uma ação sendo executada, conecte com o benefício
+- Use elementos visuais para criar ganchos emocionais`;
+
+  const userPrompt = `ANALISE ESTA IMAGEM e crie copy de anúncio contextualizada.
+
+CONTEXTO DA CAMPANHA:
+- Objetivo: ${objective}
+- Público-alvo: ${targetAudience}
+
+TAREFA:
+1. Descreva brevemente o que você vê na imagem
+2. Gere 3 opções de Primary Text (80-150 chars) que façam REFERÊNCIA DIRETA à imagem
+3. Gere 3 opções de Headline (20-40 chars) conectando imagem + objetivo
+
+REGRAS:
+- Primary Text deve começar com gancho emocional ou problema
+- Use emojis estrategicamente (máximo 2 por texto)
+- Headlines devem ser diretas e impactantes
+- CONECTE o visual ao benefício do produto/serviço
+
+FORMATO (JSON):
+{
+  "imageDescription": "descrição do que aparece na imagem",
+  "primaryTexts": ["texto1...", "texto2...", "texto3..."],
+  "headlines": ["headline1", "headline2", "headline3"]
+}
+
+Responda APENAS com o JSON.`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: userPrompt },
+            { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+          ],
+        },
+      ],
+      temperature: 0.8, // GPT-5.2 se beneficia de mais criatividade
+      max_tokens: 800,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('Sem resposta da OpenAI');
+
+    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed = JSON.parse(cleanContent);
+
+    console.log('✅ Análise de imagem concluída:', parsed.imageDescription);
+
+    return {
+      imageDescription: parsed.imageDescription,
+      primaryTexts: parsed.primaryTexts,
+      headlines: parsed.headlines,
+      analysisType: 'image',
+    };
+  } catch (error) {
+    console.error('❌ Erro na análise de imagem:', error);
+    
+    // Fallback: copy genérica
+    return {
+      imageDescription: 'Imagem não analisada',
+      primaryTexts: [
+        `🎯 Descubra como ${objective.toLowerCase()} pode transformar sua carreira. Resultados comprovados!`,
+        `⚡ A solução que ${targetAudience.toLowerCase()} esperavam para ${objective.toLowerCase()}. Não perca!`,
+        `💡 Milhares de ${targetAudience.toLowerCase()} já transformaram suas vidas. E você?`,
+      ],
+      headlines: [
+        `${objective.split(' ')[0]} para ${targetAudience}`,
+        'Transforme sua Carreira',
+        'Resultados Comprovados',
+      ],
+      analysisType: 'image',
+    };
+  }
+}
+
+// =====================================================
+// ANÁLISE DE VÍDEO (Whisper + Vision)
+// =====================================================
+
+/**
+ * Analisa um vídeo usando Whisper (áudio) + Vision (thumbnail)
+ * @param params - Parâmetros incluindo URL, thumbnail e buffer de áudio
+ * @returns Copy contextualizada baseada no vídeo
+ */
+export async function analyzeVideoForCopy(params: {
+  videoUrl: string;
+  thumbnailUrl: string;
+  audioBuffer?: Buffer;
+  fileName: string;
+  objective: string;
+  targetAudience: string;
+}): Promise<CreativeAnalysisResult> {
+  const { videoUrl, thumbnailUrl, audioBuffer, fileName, objective, targetAudience } = params;
+  
+  console.log(`🎬 Analisando vídeo: ${fileName}`);
+
+  // 1. Tentar transcrever áudio
+  let transcription: string | null = null;
+  if (audioBuffer && audioBuffer.length < 25 * 1024 * 1024) { // < 25MB
+    transcription = await transcribeVideoAudio(audioBuffer, fileName);
+  } else {
+    console.log('⚠️ Áudio não disponível ou muito grande, usando apenas análise visual');
+  }
+
+  // 2. Analisar thumbnail com Vision
+  const systemPrompt = `Você é um copywriter especialista em anúncios de vídeo para Facebook/Instagram.
+Sua missão é criar copies ALTAMENTE CONTEXTUALIZADAS baseadas no conteúdo do vídeo.
+
+${transcription ? `
+TRANSCRIÇÃO DO ÁUDIO DO VÍDEO:
+"${transcription}"
+
+Use trechos ou referências ao que é dito no vídeo para criar copies mais autênticas e envolventes.
+` : 'Não foi possível transcrever o áudio. Use apenas a análise visual da thumbnail.'}`;
+
+  const userPrompt = `ANALISE A THUMBNAIL DESTE VÍDEO${transcription ? ' e considere a transcrição do áudio acima' : ''}.
+
+CONTEXTO DA CAMPANHA:
+- Objetivo: ${objective}
+- Público-alvo: ${targetAudience}
+
+TAREFA:
+1. Descreva o que você vê na thumbnail
+2. ${transcription ? 'Conecte o visual com o que é dito no áudio' : 'Crie uma narrativa baseada no visual'}
+3. Gere 3 Primary Texts (80-150 chars) que ${transcription ? 'referenciem o áudio' : 'conectem com o visual'}
+4. Gere 3 Headlines (20-40 chars) impactantes
+
+REGRAS ESPECIAIS PARA VÍDEO:
+- ${transcription ? 'Use citações ou referências ao áudio: "Como eu disse no vídeo..."' : 'Foque no visual'}
+- Crie curiosidade para assistir
+- Conecte o gancho visual ao benefício
+
+FORMATO (JSON):
+{
+  "imageDescription": "descrição da thumbnail",
+  "audioContext": "${transcription ? 'resumo do áudio' : 'não disponível'}",
+  "primaryTexts": ["texto1...", "texto2...", "texto3..."],
+  "headlines": ["headline1", "headline2", "headline3"]
+}
+
+Responda APENAS com o JSON.`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: userPrompt },
+            { type: 'image_url', image_url: { url: thumbnailUrl, detail: 'high' } },
+          ],
+        },
+      ],
+      temperature: 0.8, // GPT-5.2 se beneficia de mais criatividade
+      max_tokens: 1000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('Sem resposta da OpenAI');
+
+    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed = JSON.parse(cleanContent);
+
+    console.log('✅ Análise de vídeo concluída:', {
+      thumbnail: parsed.imageDescription,
+      audioUsed: !!transcription,
+    });
+
+    return {
+      imageDescription: parsed.imageDescription,
+      audioTranscription: transcription || undefined,
+      primaryTexts: parsed.primaryTexts,
+      headlines: parsed.headlines,
+      analysisType: transcription ? 'video' : 'video_vision_only',
+    };
+  } catch (error) {
+    console.error('❌ Erro na análise de vídeo:', error);
+    
+    // Fallback
+    return {
+      imageDescription: 'Thumbnail não analisada',
+      primaryTexts: [
+        `🎬 Assista ao vídeo e descubra como ${objective.toLowerCase()}. Milhares já transformaram suas vidas!`,
+        `▶️ Neste vídeo, explico exatamente como ${targetAudience.toLowerCase()} podem ${objective.toLowerCase()}.`,
+        `📹 O segredo que todo ${targetAudience.toLowerCase()} precisa saber está neste vídeo. Assista!`,
+      ],
+      headlines: [
+        'Assista Agora',
+        `Segredo para ${targetAudience}`,
+        'Não Perca Este Vídeo',
+      ],
+      analysisType: 'video_vision_only',
+    };
+  }
+}
+
+// =====================================================
+// FUNÇÃO PRINCIPAL: Analisa criativo e gera copy
+// =====================================================
+
+/**
+ * Analisa qualquer tipo de criativo (imagem ou vídeo) e gera copy contextualizada
+ * @param params - Parâmetros do criativo
+ * @returns GeneratedCopy com textos contextualizados
+ */
+export async function analyzeCreativeForCopy(
+  params: AnalyzeCreativeParams
+): Promise<GeneratedCopy> {
+  const { mediaUrl, mediaType, objective, targetAudience, thumbnailUrl, audioBuffer } = params;
+
+  let result: CreativeAnalysisResult;
+
+  if (mediaType === 'image') {
+    result = await analyzeImageForCopy(mediaUrl, objective, targetAudience);
+  } else {
+    // Vídeo: usar thumbnail para análise visual
+    const thumbUrl = thumbnailUrl || mediaUrl; // fallback para URL do vídeo
+    
+    result = await analyzeVideoForCopy({
+      videoUrl: mediaUrl,
+      thumbnailUrl: thumbUrl,
+      audioBuffer,
+      fileName: mediaUrl.split('/').pop() || 'video.mp4',
+      objective,
+      targetAudience,
+    });
+  }
+
+  return {
+    imageUrl: mediaUrl,
+    primaryText: result.primaryTexts,
+    headlines: result.headlines,
+    metadata: {
+      analysisType: result.analysisType,
+      imageDescription: result.imageDescription,
+      audioTranscription: result.audioTranscription,
+    },
+  };
+}
+
+// =====================================================
+// HELPER: Gerar thumbnail de vídeo
+// =====================================================
+
+/**
+ * Extrai frame do vídeo ou usa thumbnail da Meta
+ * Para simplificar, usamos a URL do vídeo no Supabase como referência
+ * A Meta gera thumbnails automaticamente após upload
+ */
+export async function getVideoThumbnailUrl(
+  videoId: string,
+  accessToken: string
+): Promise<string | null> {
+  try {
+    const url = `https://graph.facebook.com/v21.0/${videoId}?fields=thumbnails&access_token=${accessToken}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.thumbnails?.data?.[0]?.uri) {
+      return data.thumbnails.data[0].uri;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao buscar thumbnail:', error);
+    return null;
+  }
+}
+
+// =====================================================
+// HELPER: Processar múltiplos criativos
+// =====================================================
+
+/**
+ * Analisa múltiplos criativos em paralelo (com limit de concorrência)
+ */
+export async function analyzeMultipleCreatives(
+  creatives: AnalyzeCreativeParams[],
+  maxConcurrency: number = 3
+): Promise<GeneratedCopy[]> {
+  const results: GeneratedCopy[] = [];
+  
+  // Processar em batches para não sobrecarregar a API
+  for (let i = 0; i < creatives.length; i += maxConcurrency) {
+    const batch = creatives.slice(i, i + maxConcurrency);
+    const batchResults = await Promise.all(
+      batch.map(creative => analyzeCreativeForCopy(creative))
+    );
+    results.push(...batchResults);
+    
+    // Pequeno delay entre batches
+    if (i + maxConcurrency < creatives.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  
+  return results;
+}
+
+// =====================================================
+// CAMADA 2: Análise com Prompt Profissional
+// =====================================================
+
+/**
+ * Analisa imagem usando um prompt profissional pré-gerado (Camada 2 do sistema)
+ * Este método recebe o prompt da Camada 1 e usa para gerar copy mais precisa
+ * 
+ * @param imageUrl - URL da imagem a analisar
+ * @param professionalPrompt - Prompt estruturado gerado pela Camada 1
+ * @returns Copy gerada seguindo as instruções do prompt profissional
+ */
+export async function analyzeWithProfessionalPrompt(
+  imageUrl: string,
+  professionalPrompt: string
+): Promise<{
+  primary_text: string;
+  headline: string;
+  cta: string;
+}> {
+  console.log('🎨 [IA Layer 2] Gerando copy com prompt profissional...');
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision + JSON
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um copywriter especialista em anúncios de performance. Siga EXATAMENTE as instruções do prompt fornecido. Responda APENAS com JSON válido.',
+        },
+        {
+          role: 'user',
+          content: [
+            { 
+              type: 'text', 
+              text: professionalPrompt 
+            },
+            { 
+              type: 'image_url', 
+              image_url: { url: imageUrl, detail: 'high' } 
+            },
+          ],
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('Sem resposta da OpenAI');
+
+    const parsed = JSON.parse(content);
+
+    console.log('✅ [IA Layer 2] Copy gerada:', {
+      headline: parsed.headline?.substring(0, 50),
+      cta: parsed.cta,
+    });
+
+    return {
+      primary_text: parsed.primary_text || parsed.primaryText || '',
+      headline: parsed.headline || '',
+      cta: parsed.cta || 'Saiba Mais',
+    };
+  } catch (error) {
+    console.error('❌ [IA Layer 2] Erro ao gerar copy:', error);
+    
+    // Fallback
+    return {
+      primary_text: '🎯 Médico, você perde horas digitando prontuários?\n\nO Gravador Médico transcreve suas consultas automaticamente com IA.\n\nMais de 2.000 médicos já economizam 15h/semana.\n\nTeste grátis por 7 dias.',
+      headline: 'Prontuário pronto em segundos',
+      cta: 'Começar Teste Grátis',
+    };
+  }
+}
+
+/**
+ * Analisa múltiplos criativos usando o prompt profissional (Camada 2)
+ * 
+ * @param imageUrls - Array de URLs das imagens
+ * @param professionalPrompt - Prompt estruturado gerado pela Camada 1
+ * @returns Array de GeneratedCopy para cada imagem
+ */
+export async function analyzeMultipleWithProfessionalPrompt(
+  imageUrls: string[],
+  professionalPrompt: string
+): Promise<GeneratedCopy[]> {
+  console.log(`🎨 [IA Layer 2] Analisando ${imageUrls.length} imagens com prompt profissional...`);
+  
+  const results: GeneratedCopy[] = [];
+  
+  for (const imageUrl of imageUrls) {
+    try {
+      const copy = await analyzeWithProfessionalPrompt(imageUrl, professionalPrompt);
+      
+      results.push({
+        imageUrl,
+        primaryText: [copy.primary_text],
+        headlines: [copy.headline],
+        metadata: {
+          cta: copy.cta,
+          analysisType: 'professional_prompt',
+        },
+      });
+    } catch (error) {
+      console.error(`❌ Erro ao analisar imagem ${imageUrl}:`, error);
+      
+      // Fallback para esta imagem
+      results.push({
+        imageUrl,
+        primaryText: ['🎯 Médico, economize 15h/semana com transcrição automática de consultas. Teste grátis!'],
+        headlines: ['Prontuário pronto em segundos'],
+        metadata: {
+          cta: 'Começar Teste Grátis',
+          analysisType: 'fallback',
+        },
+      });
+    }
+    
+    // Pequeno delay entre chamadas
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  
+  return results;
+}

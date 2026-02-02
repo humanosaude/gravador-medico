@@ -450,7 +450,7 @@ export async function callOpenAI(
   
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-chat', // Modelo recomendado para produção (mais rápido e barato)
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt }
@@ -557,7 +557,7 @@ PERGUNTA DO USUÁRIO:
   const openai = new OpenAI({ apiKey });
   
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.1-chat', // Modelo recomendado para produção
     messages: [
       { role: 'system', content: SYSTEM_PROMPT + '\n\nResponda em texto formatado em Markdown, não JSON.' },
       { role: 'user', content: fullPrompt }

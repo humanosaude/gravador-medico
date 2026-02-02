@@ -1,7 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { Home, Compass, Wrench, ShoppingBag, User, FileText, BarChart3, ShoppingCart, MessageSquare, MessageCircle, Target, Ticket, Users, Mail, CreditCard, DollarSign } from "lucide-react"
+import { Home, Compass, Wrench, ShoppingBag, User, FileText, BarChart3, ShoppingCart, MessageSquare, MessageCircle, Target, Ticket, Users, Mail, CreditCard, DollarSign, Brain, Megaphone, Rocket, Bell, Settings, UsersRound } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
 import NotificationBell from "./NotificationBell"
@@ -71,6 +71,52 @@ export default function DockSidebar() {
       href: "/admin/tracking",
       label: "Tracking",
       description: "Rastreamento e atribuição",
+    },
+    // ═══════════════════════════════════════
+    // IA & ANÚNCIOS
+    // ═══════════════════════════════════════
+    {
+      id: "ads",
+      icon: <Megaphone className="w-6 h-6" />,
+      href: "/admin/ads",
+      label: "Anúncios",
+      description: "Lançador de Ads IA",
+      separator: true,
+    },
+    {
+      id: "ai-performance",
+      icon: <Brain className="w-6 h-6" />,
+      href: "/admin/ai",
+      label: "Dashboard IA",
+      description: "Análise inteligente",
+    },
+    {
+      id: "escala-automatica",
+      icon: <Rocket className="w-6 h-6" />,
+      href: "/admin/ai/escala-automatica",
+      label: "Escala Automática",
+      description: "Cockpit de controle",
+    },
+    {
+      id: "alertas",
+      icon: <Bell className="w-6 h-6" />,
+      href: "/admin/ai/rules",
+      label: "Regras de Alerta",
+      description: "Configurar CPA/ROAS",
+    },
+    {
+      id: "audiences",
+      icon: <UsersRound className="w-6 h-6" />,
+      href: "/admin/ai/audiences",
+      label: "Públicos",
+      description: "Gerenciar audiências",
+    },
+    {
+      id: "meta-settings",
+      icon: <Settings className="w-6 h-6" />,
+      href: "/admin/ai/settings",
+      label: "Config Meta",
+      description: "Tokens e contas",
     },
     // ═══════════════════════════════════════
     // GESTÃO

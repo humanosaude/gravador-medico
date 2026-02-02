@@ -1,3 +1,16 @@
 {
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/cron/process-videos",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/audit-campaigns",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-audiences?secret=cron-secret-2026-gravador-medico-secure",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }
