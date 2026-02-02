@@ -22,7 +22,7 @@ interface SalesData {
 }
 
 // Função para calcular datas baseado no período do Facebook
-function getDateRangeFromPeriod(period: string): { start: Date; end: Date } {
+function getDateRangeFromPeriod(period: string, customStart?: string, customEnd?: string): { start: Date; end: Date } {
   const now = new Date();
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
@@ -58,6 +58,12 @@ function getDateRangeFromPeriod(period: string): { start: Date; end: Date } {
       break;
     case 'maximum':
       start = new Date('2020-01-01');
+      break;
+    case 'custom':
+      if (customStart && customEnd) {
+        start = new Date(customStart + 'T00:00:00');
+        return { start, end: new Date(customEnd + 'T23:59:59.999') };
+      }
       break;
     default:
       start.setDate(start.getDate() - 6);
@@ -197,6 +203,7 @@ const periodOptions = [
   { value: 'this_month', label: 'Este mês' },
   { value: 'last_month', label: 'Mês passado' },
   { value: 'maximum', label: 'Todo período' },
+  { value: 'custom', label: 'Personalizado' },
 ];
 
 // Opções de filtro por status
@@ -229,6 +236,10 @@ export default function AdsPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState('today'); // HOJE como padrão
   
+  // Datas personalizadas
+  const [customStartDate, setCustomStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  
   // Estado para vendas reais do Supabase
   const [realSales, setRealSales] = useState<SalesData | null>(null);
   
@@ -241,11 +252,16 @@ export default function AdsPage() {
   const [activeTab, setActiveTab] = useState<InsightLevel>('campaign');
 
   // Fetch data por nível
-  const fetchLevelData = useCallback(async (level: InsightLevel, period: string) => {
+  const fetchLevelData = useCallback(async (level: InsightLevel, period: string, startDate?: string, endDate?: string) => {
     try {
       const params = new URLSearchParams({ period, level });
       if (level !== 'campaign') {
         params.set('include_status', '1');
+      }
+      // Para período personalizado, enviar datas
+      if (period === 'custom' && startDate && endDate) {
+        params.set('start', startDate);
+        params.set('end', endDate);
       }
       const res = await fetch(`/api/ads/insights?${params.toString()}`);
       
@@ -264,9 +280,9 @@ export default function AdsPage() {
   }, []);
 
   // Buscar vendas reais do Supabase para o período
-  const fetchRealSales = useCallback(async (period: string) => {
+  const fetchRealSales = useCallback(async (period: string, startDate?: string, endDate?: string) => {
     try {
-      const { start, end } = getDateRangeFromPeriod(period);
+      const { start, end } = getDateRangeFromPeriod(period, startDate, endDate);
       const params = new URLSearchParams({
         start: start.toISOString(),
         end: end.toISOString(),
@@ -394,7 +410,7 @@ export default function AdsPage() {
       try {
         // Buscar dados do período selecionado e dados de tempo real em paralelo
         const [periodData, todayData, monthData] = await Promise.all([
-          fetchLevelData('campaign', selectedPeriod),
+          fetchLevelData('campaign', selectedPeriod, customStartDate, customEndDate),
           fetchLevelData('campaign', 'today'),
           fetchLevelData('campaign', 'this_month')
         ]);
@@ -413,7 +429,7 @@ export default function AdsPage() {
         setSpendMonth(monthSpend);
         
         // Buscar vendas reais (se autenticado)
-        await fetchRealSales(selectedPeriod);
+        await fetchRealSales(selectedPeriod, customStartDate, customEndDate);
         
         setLastUpdate(new Date());
       } catch (error) {
@@ -428,7 +444,7 @@ export default function AdsPage() {
     // Limpar dados de níveis secundários quando período muda
     setAdsets([]);
     setAds([]);
-  }, [selectedPeriod, fetchLevelData, fetchRealSales]);
+  }, [selectedPeriod, customStartDate, customEndDate, fetchLevelData, fetchRealSales]);
 
   useEffect(() => {
     // Atualizar a cada 5 minutos
@@ -836,6 +852,25 @@ export default function AdsPage() {
               </option>
             ))}
           </select>
+
+          {/* Datas Personalizadas */}
+          {selectedPeriod === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-gray-400">até</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
 
           {/* Filtro por Status */}
           <div className="flex items-center gap-1.5">
