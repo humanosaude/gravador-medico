@@ -8,9 +8,20 @@
 import OpenAI from 'openai';
 import type { GeneratedCopy } from './types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization para evitar erro no build time
+let _openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY não configurada');
+    }
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 // =====================================================
 // TIPOS
@@ -55,7 +66,7 @@ export async function transcribeVideoAudio(
     const blob = new Blob([uint8Array], { type: 'video/mp4' });
     const file = new File([blob], fileName, { type: 'video/mp4' });
 
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await getOpenAI().audio.transcriptions.create({
       file,
       model: 'whisper-1',
       language: 'pt', // Português
@@ -130,7 +141,7 @@ FORMATO (JSON):
 Responda APENAS com o JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
       messages: [
         { role: 'system', content: systemPrompt },
@@ -249,7 +260,7 @@ FORMATO (JSON):
 Responda APENAS com o JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
       messages: [
         { role: 'system', content: systemPrompt },
@@ -430,7 +441,7 @@ export async function analyzeWithProfessionalPrompt(
   console.log('🎨 [IA Layer 2] Gerando copy com prompt profissional...');
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision + JSON
       messages: [
         {
