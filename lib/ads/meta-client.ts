@@ -40,6 +40,12 @@ export function initializeFacebookApi(accessToken: string): void {
   }
 }
 
+// Normaliza o Ad Account ID para sempre ter o prefixo 'act_'
+function normalizeAdAccountId(adAccountId: string): string {
+  if (!adAccountId) return adAccountId;
+  return adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+}
+
 export function getMetaConfig(): MetaAdsConfig {
   const accessToken = process.env.META_ACCESS_TOKEN;
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
@@ -100,7 +106,7 @@ export async function uploadImageToMeta(
   adAccountId: string
 ): Promise<string> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
     
     // Upload via URL
     const result = await account.createAdImage(
@@ -136,7 +142,7 @@ export async function createCampaign(
   params: CampaignParams
 ): Promise<string> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
     
     const campaignData = {
       name: params.name,
@@ -188,7 +194,7 @@ export async function createAdSet(
   params: AdSetParams
 ): Promise<string> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
 
     const adSetData = {
       name: params.name,
@@ -234,7 +240,7 @@ export async function createAdCreative(
   }
 ): Promise<string> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
 
     const creativeData = {
       name: params.name,
@@ -288,7 +294,7 @@ export async function createAd(
   }
 ): Promise<string> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
 
     // 🔥 UTMs Automáticos - Rastreamento completo
     const campaignNameSafe = encodeURIComponent(params.campaignName || 'campaign');
@@ -340,7 +346,7 @@ export async function createAd(
 
 export async function getActiveAds(adAccountId: string): Promise<any[]> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
 
     const ads = await account.getAds(
       [
@@ -377,7 +383,7 @@ export async function getAdInsights(
   datePreset: string = 'last_7d'
 ): Promise<AdMetrics[]> {
   try {
-    const account = new AdAccount(adAccountId);
+    const account = new AdAccount(normalizeAdAccountId(adAccountId));
 
     const insights = await account.getInsights(
       [

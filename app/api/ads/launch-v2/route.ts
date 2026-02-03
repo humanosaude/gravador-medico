@@ -102,8 +102,14 @@ async function getMetaSettingsFromDB(): Promise<MetaSettings | null> {
       pixelId: data.meta_pixel_id
     });
 
+    // Normalizar Ad Account ID (remover prefixo 'act_' se existir)
+    const rawAdAccountId = data.meta_ad_account_id;
+    const normalizedAdAccountId = rawAdAccountId.startsWith('act_') 
+      ? rawAdAccountId.replace('act_', '') 
+      : rawAdAccountId;
+
     return {
-      adAccountId: data.meta_ad_account_id,
+      adAccountId: normalizedAdAccountId,
       pageId: data.meta_page_id || process.env.META_PAGE_ID || '',
       pixelId: data.meta_pixel_id || process.env.META_PIXEL_ID,
       instagramId: data.meta_instagram_id || data.instagram_actor_id || process.env.META_INSTAGRAM_ID,
@@ -1190,10 +1196,34 @@ export async function POST(request: NextRequest) {
       message,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Erro ao criar campanha:', error);
+    
+    // Extrair informações detalhadas do erro Meta
+    let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    let errorDetails = '';
+    
+    if (error.response) {
+      try {
+        const errorData = await error.response.json();
+        errorDetails = JSON.stringify(errorData, null, 2);
+        console.error('📋 Detalhes do erro Meta:', errorDetails);
+      } catch (e) {
+        // Ignorar erro ao parsear
+      }
+    }
+    
+    // Se for erro da Meta API, incluir código e fbtrace
+    if (errorMessage.includes('Meta API Error')) {
+      console.error('🔍 Erro Meta API detectado');
+    }
+    
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
+      { 
+        success: false, 
+        error: `Meta API Error [undefined]: ${errorMessage}`,
+        details: errorDetails || undefined
+      },
       { status: 500 }
     );
   }
