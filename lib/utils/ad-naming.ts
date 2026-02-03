@@ -26,6 +26,8 @@ export interface NamingInput {
   lookalikePercent?: number; // 1, 2, 3...
   ageRange?: string; // "25-55"
   placement?: 'auto' | 'feed' | 'stories' | 'reels';
+  dailyBudget?: number; // Orçamento diário em R$
+  gender?: 'ALL' | 'M' | 'F'; // Gênero do público
   
   // Ad
   mediaFormat: 'video' | 'image' | 'carousel';
@@ -182,12 +184,33 @@ export function generateAdNames(input: NamingInput): GeneratedNames {
   const campaignName = `${prefix} • ${funnelLabel} • ${input.objectiveTag} • ${date}`;
   
   // ═══════════════════════════════════════
-  // NOME DO ADSET
+  // NOME DO ADSET (melhorado com mais contexto)
   // ═══════════════════════════════════════
   const audienceLabel = getAudienceLabel(input);
   const ageRange = input.ageRange || '18-65';
   const placementLabel = getPlacementLabel(input.placement);
-  const adSetName = `${audienceLabel} • ${ageRange} • ${placementLabel}`;
+  const genderLabel = input.gender === 'M' ? 'H' : input.gender === 'F' ? 'M' : 'TODOS';
+  
+  // ✅ MELHORADO: Inclui orçamento e objetivo no nome
+  let adSetName = `${audienceLabel} • ${ageRange} • ${genderLabel}`;
+  
+  // Adicionar orçamento se disponível
+  if (input.dailyBudget) {
+    adSetName += ` • R$${input.dailyBudget}/dia`;
+  }
+  
+  // Adicionar objetivo resumido
+  if (input.objectiveTag) {
+    const objectiveShort = input.objectiveTag.length > 20 
+      ? input.objectiveTag.substring(0, 17) + '...' 
+      : input.objectiveTag;
+    adSetName += ` • ${objectiveShort}`;
+  }
+  
+  // Adicionar placement se não for auto
+  if (input.placement && input.placement !== 'auto') {
+    adSetName += ` • ${placementLabel}`;
+  }
   
   // ═══════════════════════════════════════
   // NOME DO AD

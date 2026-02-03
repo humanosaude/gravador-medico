@@ -7,6 +7,16 @@
 
 import OpenAI from 'openai';
 import type { GeneratedCopy } from './types';
+// ✅ IMPORTAR funções do video-analyzer que já extraem áudio corretamente
+import { 
+  extractAudioFromVideo, 
+  transcribeAudioWithWhisper, 
+  extractFramesFromVideo,
+  analyzeFramesWithGPT as analyzeFramesWithGPTFromVideoAnalyzer
+} from '@/lib/video-analyzer';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -34,43 +44,57 @@ interface AnalyzeCreativeParams {
 }
 
 // =====================================================
-// TRANSCRIÇÃO DE VÍDEO (Whisper)
+// TRANSCRIÇÃO DE VÍDEO (Whisper via FFmpeg)
 // =====================================================
 
 /**
- * Transcreve o áudio de um vídeo usando Whisper API
- * @param audioBuffer - Buffer do arquivo de áudio/vídeo
+ * Transcreve o áudio de um vídeo usando FFmpeg + Whisper API
+ * ✅ CORRIGIDO: Extrai MP3 primeiro, depois envia ao Whisper
+ * @param videoBuffer - Buffer do arquivo de vídeo
  * @param fileName - Nome do arquivo original
  * @returns Transcrição do áudio ou null se falhar
  */
 export async function transcribeVideoAudio(
-  audioBuffer: Buffer,
+  videoBuffer: Buffer,
   fileName: string
 ): Promise<string | null> {
-  console.log(`🎤 Transcrevendo áudio: ${fileName}`);
+  console.log(`🎤 [transcribeVideoAudio] Processando: ${fileName}`);
 
+  // Criar arquivo temporário do vídeo
+  const tempDir = os.tmpdir();
+  const videoPath = path.join(tempDir, `video-${Date.now()}.mp4`);
+  
   try {
-    // Converter Buffer para Uint8Array para compatibilidade com Blob
-    const uint8Array = new Uint8Array(audioBuffer);
-    const blob = new Blob([uint8Array], { type: 'video/mp4' });
-    const file = new File([blob], fileName, { type: 'video/mp4' });
-
-    const transcription = await openai.audio.transcriptions.create({
-      file,
-      model: 'whisper-1',
-      language: 'pt', // Português
-      response_format: 'text',
-    });
-
-    console.log(`✅ Transcrição obtida: ${transcription.substring(0, 100)}...`);
-    return transcription;
-  } catch (error) {
-    console.error('❌ Erro na transcrição Whisper:', error);
+    // 1. Salvar vídeo em arquivo temporário
+    await fs.writeFile(videoPath, videoBuffer);
+    console.log(`   📁 Vídeo salvo temporariamente: ${videoPath}`);
     
-    // Verificar se é erro de tamanho (limite de 25MB)
-    if (error instanceof Error && error.message.includes('too large')) {
-      console.log('⚠️ Arquivo muito grande para Whisper (>25MB)');
+    // 2. Extrair áudio para MP3 usando FFmpeg
+    const audioPath = await extractAudioFromVideo(videoPath);
+    
+    if (!audioPath) {
+      console.log('   ⚠️ Falha ao extrair áudio (FFmpeg não disponível)');
+      return null;
     }
+    
+    // 3. Transcrever MP3 com Whisper
+    const transcription = await transcribeAudioWithWhisper(audioPath);
+    
+    // 4. Limpar arquivos temporários
+    await fs.unlink(videoPath).catch(() => {});
+    await fs.unlink(audioPath).catch(() => {});
+    
+    if (transcription && transcription !== '[Transcrição não disponível]') {
+      console.log(`   ✅ Transcrição obtida: ${transcription.substring(0, 100)}...`);
+      return transcription;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Erro na transcrição:', error);
+    
+    // Limpar arquivo temporário em caso de erro
+    await fs.unlink(videoPath).catch(() => {});
     
     return null;
   }
@@ -182,11 +206,12 @@ Responda APENAS com o JSON.`;
 }
 
 // =====================================================
-// ANÁLISE DE VÍDEO (Whisper + Vision)
+// ANÁLISE DE VÍDEO (FFmpeg + Whisper + Vision)
 // =====================================================
 
 /**
- * Analisa um vídeo usando Whisper (áudio) + Vision (thumbnail)
+ * Analisa um vídeo usando FFmpeg para extrair frames + Whisper para áudio
+ * ✅ CORRIGIDO: Extrai frames JPEG para Vision, extrai MP3 para Whisper
  * @param params - Parâmetros incluindo URL, thumbnail e buffer de áudio
  * @returns Copy contextualizada baseada no vídeo
  */
@@ -198,19 +223,53 @@ export async function analyzeVideoForCopy(params: {
   objective: string;
   targetAudience: string;
 }): Promise<CreativeAnalysisResult> {
-  const { videoUrl, thumbnailUrl, audioBuffer, fileName, objective, targetAudience } = params;
+  const { videoUrl, audioBuffer, fileName, objective, targetAudience } = params;
   
-  console.log(`🎬 Analisando vídeo: ${fileName}`);
+  console.log(`🎬 [analyzeVideoForCopy] Analisando vídeo: ${fileName}`);
 
-  // 1. Tentar transcrever áudio
   let transcription: string | null = null;
-  if (audioBuffer && audioBuffer.length < 25 * 1024 * 1024) { // < 25MB
-    transcription = await transcribeVideoAudio(audioBuffer, fileName);
-  } else {
-    console.log('⚠️ Áudio não disponível ou muito grande, usando apenas análise visual');
+  let frameBase64Images: string[] = [];
+  
+  // Criar arquivo temporário do vídeo se tiver buffer
+  const tempDir = os.tmpdir();
+  const videoPath = path.join(tempDir, `analyze-video-${Date.now()}.mp4`);
+  
+  try {
+    // 1. Se tiver buffer, salvar e extrair frames + áudio
+    if (audioBuffer && audioBuffer.length > 0) {
+      await fs.writeFile(videoPath, audioBuffer);
+      console.log(`   📁 Vídeo salvo para análise: ${videoPath}`);
+      
+      // 1a. Extrair áudio e transcrever
+      const audioPath = await extractAudioFromVideo(videoPath);
+      if (audioPath) {
+        transcription = await transcribeAudioWithWhisper(audioPath);
+        await fs.unlink(audioPath).catch(() => {});
+        console.log(`   ✅ Transcrição: ${transcription ? 'OK' : 'Falhou'}`);
+      }
+      
+      // 1b. Extrair frames para análise visual
+      const framePaths = await extractFramesFromVideo(videoPath, 0.5, 3); // 3 frames
+      
+      if (framePaths.length > 0) {
+        // Converter frames para base64
+        for (const framePath of framePaths) {
+          const frameBuffer = await fs.readFile(framePath);
+          frameBase64Images.push(`data:image/jpeg;base64,${frameBuffer.toString('base64')}`);
+          await fs.unlink(framePath).catch(() => {}); // Limpar
+        }
+        console.log(`   📸 ${frameBase64Images.length} frames extraídos para Vision`);
+      }
+      
+      // Limpar vídeo temporário
+      await fs.unlink(videoPath).catch(() => {});
+    }
+  } catch (extractError) {
+    console.error('   ⚠️ Erro na extração (continuando sem):', extractError);
+    await fs.unlink(videoPath).catch(() => {});
   }
 
-  // 2. Analisar thumbnail com Vision
+  // 2. Preparar prompt para GPT Vision
   const systemPrompt = `Você é um copywriter especialista em anúncios de vídeo para Facebook/Instagram.
 Sua missão é criar copies ALTAMENTE CONTEXTUALIZADAS baseadas no conteúdo do vídeo.
 
@@ -219,16 +278,16 @@ TRANSCRIÇÃO DO ÁUDIO DO VÍDEO:
 "${transcription}"
 
 Use trechos ou referências ao que é dito no vídeo para criar copies mais autênticas e envolventes.
-` : 'Não foi possível transcrever o áudio. Use apenas a análise visual da thumbnail.'}`;
+` : 'Não foi possível transcrever o áudio. Use apenas a análise visual dos frames.'}`;
 
-  const userPrompt = `ANALISE A THUMBNAIL DESTE VÍDEO${transcription ? ' e considere a transcrição do áudio acima' : ''}.
+  const userPrompt = `ANALISE ${frameBase64Images.length > 0 ? 'OS FRAMES DESTE VÍDEO' : 'ESTE VÍDEO'}${transcription ? ' e considere a transcrição do áudio acima' : ''}.
 
 CONTEXTO DA CAMPANHA:
 - Objetivo: ${objective}
 - Público-alvo: ${targetAudience}
 
 TAREFA:
-1. Descreva o que você vê na thumbnail
+1. Descreva o que você vê nos frames/thumbnail
 2. ${transcription ? 'Conecte o visual com o que é dito no áudio' : 'Crie uma narrativa baseada no visual'}
 3. Gere 3 Primary Texts (80-150 chars) que ${transcription ? 'referenciem o áudio' : 'conectem com o visual'}
 4. Gere 3 Headlines (20-40 chars) impactantes
@@ -240,7 +299,7 @@ REGRAS ESPECIAIS PARA VÍDEO:
 
 FORMATO (JSON):
 {
-  "imageDescription": "descrição da thumbnail",
+  "imageDescription": "descrição do que aparece no vídeo",
   "audioContext": "${transcription ? 'resumo do áudio' : 'não disponível'}",
   "primaryTexts": ["texto1...", "texto2...", "texto3..."],
   "headlines": ["headline1", "headline2", "headline3"]
@@ -249,19 +308,33 @@ FORMATO (JSON):
 Responda APENAS com o JSON.`;
 
   try {
+    // Construir conteúdo com frames ou fallback para URL
+    const contentParts: any[] = [{ type: 'text', text: userPrompt }];
+    
+    if (frameBase64Images.length > 0) {
+      // ✅ Usar frames extraídos (JPEG)
+      for (const base64Image of frameBase64Images) {
+        contentParts.push({
+          type: 'image_url',
+          image_url: { url: base64Image, detail: 'low' } // low para economizar tokens
+        });
+      }
+    } else {
+      // Fallback: tentar com URL do vídeo (pode falhar)
+      console.log('   ⚠️ Sem frames, tentando com URL (pode falhar)');
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: params.thumbnailUrl || videoUrl, detail: 'low' }
+      });
+    }
+    
     const response = await openai.chat.completions.create({
-      model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
+      model: 'gpt-5.2',
       messages: [
         { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: userPrompt },
-            { type: 'image_url', image_url: { url: thumbnailUrl, detail: 'high' } },
-          ],
-        },
+        { role: 'user', content: contentParts },
       ],
-      temperature: 0.8, // GPT-5.2 se beneficia de mais criatividade
+      temperature: 0.8,
       max_completion_tokens: 1000,
     });
 

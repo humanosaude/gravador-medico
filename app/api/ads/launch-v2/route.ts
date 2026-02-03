@@ -872,6 +872,9 @@ export async function POST(request: NextRequest) {
       filename: firstFileName,
       copyVersion: 1,
       launchDate: new Date(),
+      // ✅ MELHORADO: Adicionar orçamento e gênero para nomenclatura mais rica
+      dailyBudget: dailyBudget,
+      gender: gender === 'MALE' ? 'M' : gender === 'FEMALE' ? 'F' : 'ALL',
     };
     
     const generatedNames = generateAdNames(namingInput);
@@ -1276,14 +1279,42 @@ export async function POST(request: NextRequest) {
     }
 
     // =====================================================
+    // VALIDAÇÃO RIGOROSA: Verificar se pelo menos 1 Ad foi criado
+    // =====================================================
+    
+    const hasImages = uploadedImages.length > 0;
+    const hasVideos = uploadedVideos.length > 0;
+    
+    // Para campanhas de IMAGEM: deve ter pelo menos 1 Ad criado
+    // Para campanhas de VÍDEO: aceita 0 Ads (serão criados pelo cron após encoding)
+    if (hasImages && !hasVideos && adIds.length === 0) {
+      // 🔴 FALHA CRÍTICA: Campanha de imagem sem nenhum anúncio criado
+      console.error('❌ FALHA CRÍTICA: Nenhum anúncio de imagem foi criado!');
+      
+      // Rollback: deletar campanha órfã
+      console.log(`🗑️ ROLLBACK: Deletando campanha órfã ${campaignId}...`);
+      const rollbackSuccess = await deleteCampaign(campaignId);
+      console.log(`   ${rollbackSuccess ? '✅' : '⚠️'} Rollback ${rollbackSuccess ? 'concluído' : 'falhou'}`);
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Nenhum anúncio foi criado. Verifique os criativos enviados.',
+        rollbackExecuted: rollbackSuccess,
+        campaignId: rollbackSuccess ? null : campaignId,
+      }, { status: 400 });
+    }
+    
+    // Para campanhas MISTAS (imagem + vídeo): deve ter pelo menos 1 Ad de imagem
+    if (hasImages && hasVideos && adIds.length === 0) {
+      console.warn('⚠️ Campanha mista sem anúncios de imagem - vídeos em processamento');
+      // Não faz rollback pois vídeos serão processados
+    }
+
+    // =====================================================
     // RESPOSTA FINAL
     // =====================================================
 
     console.log('🎉 Campanha criada com sucesso!');
-
-    // Determinar mensagem baseada no tipo de mídia
-    const hasImages = uploadedImages.length > 0;
-    const hasVideos = uploadedVideos.length > 0;
     
     // ✅ Mensagens corrigidas: campanha aparece IMEDIATAMENTE no Meta Ads
     let message = '';
