@@ -189,15 +189,16 @@ async function getMetaConfig(): Promise<MetaConfig | null> {
       console.log('[AudienceSyncer] Usando config do ambiente');
       return {
         accessToken: process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || '',
-        adAccountId: process.env.META_AD_ACCOUNT_ID || '',
+        adAccountId: process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID || '',
         pixelId: process.env.META_PIXEL_ID,
         instagramActorId: process.env.META_INSTAGRAM_ID,
       };
     }
     
+    // Busca do banco, com fallback para env se não tiver token
     return {
-      accessToken: process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || '',
-      adAccountId: data.meta_ad_account_id,
+      accessToken: data.meta_access_token || process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || '',
+      adAccountId: data.meta_ad_account_id || process.env.FACEBOOK_AD_ACCOUNT_ID || '',
       pixelId: data.meta_pixel_id,
       instagramActorId: data.meta_instagram_id,
     };

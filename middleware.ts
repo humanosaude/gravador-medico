@@ -54,7 +54,7 @@ function setSecurityHeaders(response: NextResponse): NextResponse {
       "style-src 'self' 'unsafe-inline' https://*.mlstatic.com",
       "img-src 'self' blob: data: https:",
       "font-src 'self' data: https://*.mlstatic.com",
-      "media-src 'self' data:", // ✅ Permite sons base64
+      "media-src 'self' data: blob: https://*.supabase.co https://*.fbcdn.net", // ✅ CORRIGIDO: Permite blob: para preview de vídeo
       // 🔥 Connect: Mercado Pago APIs + Bricks + Meta Pixel/CAPI
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadopago.com.br https://*.mercadolibre.com https://*.mercadopago.com https://secure-fields.mercadopago.com https://*.mlstatic.com https://events.mercadopago.com https://api.appmax.com.br https://www.google-analytics.com https://www.googletagmanager.com https://*.facebook.com https://*.facebook.net https://connect.facebook.net https://*.fbcdn.net https://graph.facebook.com https://*.run.app https://*.conversionsapigateway.com",
       // 🔥 Frames: Mercado Pago Bricks e Secure Fields + Facebook

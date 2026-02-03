@@ -110,7 +110,7 @@ export interface AdSetParams {
   campaign_id: string;
   daily_budget: number; // Em centavos
   billing_event: 'IMPRESSIONS' | 'LINK_CLICKS' | 'APP_INSTALLS';
-  optimization_goal: 'OFFSITE_CONVERSIONS' | 'LINK_CLICKS' | 'IMPRESSIONS' | 'REACH';
+  optimization_goal: 'OFFSITE_CONVERSIONS' | 'LINK_CLICKS' | 'LANDING_PAGE_VIEWS' | 'IMPRESSIONS' | 'REACH';
   targeting: FacebookTargeting;
   status: 'PAUSED' | 'ACTIVE';
   bid_strategy?: 'LOWEST_COST_WITHOUT_CAP' | 'LOWEST_COST_WITH_BID_CAP' | 'COST_CAP';

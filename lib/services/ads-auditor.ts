@@ -719,15 +719,16 @@ export class AdsAuditor {
 // =====================================================
 
 export async function runCampaignAudit(): Promise<AuditResult> {
-  // Buscar credenciais
+  // Buscar credenciais do banco
   const { data: settings } = await supabaseAdmin
     .from('integration_settings')
-    .select('meta_ad_account_id')
+    .select('meta_ad_account_id, meta_access_token')
     .eq('is_default', true)
     .single();
 
-  const adAccountId = settings?.meta_ad_account_id || process.env.META_AD_ACCOUNT_ID;
-  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
+  // Busca do banco, com fallback para env
+  const adAccountId = settings?.meta_ad_account_id || process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+  const accessToken = settings?.meta_access_token || process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
 
   if (!adAccountId || !accessToken) {
     throw new Error('Credenciais Meta não configuradas');

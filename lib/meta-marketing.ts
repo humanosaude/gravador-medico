@@ -5,8 +5,83 @@
  * para exibir métricas de performance no dashboard admin.
  */
 
-const AD_ACCOUNT_ID = process.env.FACEBOOK_AD_ACCOUNT_ID;
-const ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
+import { supabaseAdmin } from './supabase';
+
+// =====================================================
+// CONFIG: Buscar credenciais do banco ou env
+// =====================================================
+
+interface MetaCredentials {
+  adAccountId: string;
+  accessToken: string;
+}
+
+let cachedCredentials: MetaCredentials | null = null;
+let credentialsCacheTime: number = 0;
+const CACHE_TTL = 60000; // 1 minuto
+
+async function getMetaCredentials(): Promise<MetaCredentials | null> {
+  // Verifica cache
+  if (cachedCredentials && Date.now() - credentialsCacheTime < CACHE_TTL) {
+    return cachedCredentials;
+  }
+
+  // Access token SEMPRE vem das variáveis de ambiente (segurança)
+  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
+  
+  if (!accessToken) {
+    console.error('❌ Access token Meta não configurado nas variáveis de ambiente');
+    return null;
+  }
+
+  try {
+    // 1. Tentar buscar account_id do banco de dados (integration_settings)
+    const { data: settings } = await supabaseAdmin
+      .from('integration_settings')
+      .select('meta_ad_account_id')
+      .single();
+
+    if (settings?.meta_ad_account_id) {
+      cachedCredentials = {
+        adAccountId: settings.meta_ad_account_id,
+        accessToken: accessToken,
+      };
+      credentialsCacheTime = Date.now();
+      console.log('✅ [meta-marketing] Usando Account ID do banco, Token das env vars');
+      return cachedCredentials;
+    }
+
+    // 2. Fallback: account_id das variáveis de ambiente
+    const envAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+
+    if (envAccountId) {
+      cachedCredentials = {
+        adAccountId: envAccountId,
+        accessToken: accessToken,
+      };
+      credentialsCacheTime = Date.now();
+      console.log('✅ [meta-marketing] Usando credenciais das env vars');
+      return cachedCredentials;
+    }
+
+    console.error('❌ Meta Ad Account ID não configurado');
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao buscar credenciais Meta:', error);
+    
+    // Fallback para variáveis de ambiente em caso de erro
+    const envAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+
+    if (envAccountId) {
+      return {
+        adAccountId: envAccountId,
+        accessToken: accessToken,
+      };
+    }
+
+    return null;
+  }
+}
 
 export interface CampaignInsight {
   campaign_name?: string;
@@ -73,20 +148,21 @@ const FIELDS_BY_LEVEL: Record<InsightLevel, string> = {
 };
 
 // Action types helpers
+// ⚠️ IMPORTANTE: Usar APENAS UM tipo de cada evento para evitar duplicação
+// O Meta retorna múltiplas versões do mesmo evento (purchase, omni_purchase, fb_pixel_purchase)
+// Todos representam a MESMA transação, então só contamos uma vez
 export const ACTION_TYPES = {
+  // Compras: usar APENAS o evento do Pixel (mais confiável)
   purchases: [
-    'purchase',
-    'omni_purchase',
     'offsite_conversion.fb_pixel_purchase'
   ],
+  // Leads: usar APENAS o evento do Pixel
   leads: [
-    'lead',
     'offsite_conversion.fb_pixel_lead'
   ],
+  // Checkout: usar APENAS o evento do Pixel  
   checkout: [
-    'omni_initiated_checkout',
-    'offsite_conversion.fb_pixel_initiate_checkout',
-    'initiate_checkout'
+    'offsite_conversion.fb_pixel_initiate_checkout'
   ]
 } as const;
 
@@ -171,16 +247,21 @@ export async function getAdsInsights(
   timeRange?: { since: string; until: string },
   timeIncrement?: string
 ): Promise<CampaignInsight[]> {
-  if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) {
-    console.error('❌ FACEBOOK_AD_ACCOUNT_ID ou FACEBOOK_ACCESS_TOKEN não configurados');
+  // ✅ Buscar credenciais do banco ou env
+  const credentials = await getMetaCredentials();
+  
+  if (!credentials) {
+    console.error('❌ Meta Ads não configurado. Configure em /admin/ai/settings ou nas variáveis de ambiente.');
     return [];
   }
+
+  const { adAccountId, accessToken } = credentials;
 
   // Usar time_range para períodos específicos (garante inclusão do dia atual)
   const resolvedTimeRange = timeRange || getTimeRange(datePreset);
   
   const params: Record<string, string> = {
-    access_token: ACCESS_TOKEN,
+    access_token: accessToken,
     level: level,
     fields: FIELDS_BY_LEVEL[level],
     limit: '100'
@@ -197,7 +278,7 @@ export async function getAdsInsights(
     params.time_increment = timeIncrement;
   }
 
-  const url = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/insights?` + new URLSearchParams(params);
+  const url = `https://graph.facebook.com/v19.0/act_${adAccountId}/insights?` + new URLSearchParams(params);
 
   try {
     // Sem cache para dados do dia atual (podem mudar frequentemente)
@@ -344,10 +425,14 @@ export function calculateAdsMetrics(campaigns: CampaignInsight[]): AdsMetrics {
  * Busca status das campanhas (ativa/pausada) com data de criação
  */
 export async function getCampaignsStatus(): Promise<Map<string, string>> {
-  if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) return new Map();
+  // ✅ Buscar credenciais do banco ou env
+  const credentials = await getMetaCredentials();
+  if (!credentials) return new Map();
 
-  const url = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/campaigns?` + new URLSearchParams({
-    access_token: ACCESS_TOKEN,
+  const { adAccountId, accessToken } = credentials;
+
+  const url = `https://graph.facebook.com/v19.0/act_${adAccountId}/campaigns?` + new URLSearchParams({
+    access_token: accessToken,
     fields: 'id,name,status,effective_status,created_time',
     limit: '50'
   });

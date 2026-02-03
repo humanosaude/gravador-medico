@@ -63,6 +63,15 @@ export default function AdminDashboard() {
   const [trafficData, setTrafficData] = useState<TrafficDataItem[]>([]);
   const [fbMetrics, setFbMetrics] = useState<AdsMetrics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [adsError, setAdsError] = useState<string | null>(null);
+  
+  // Novas métricas com ROAS inteligente
+  const [smartMetrics, setSmartMetrics] = useState<{
+    roas: number;
+    revenue: number;
+    purchases: number;
+    revenueSource: string;
+  } | null>(null);
 
   const resolveMetaAdsRange = useCallback(() => {
     if (filterType === 'custom') {
@@ -107,6 +116,7 @@ export default function AdminDashboard() {
   // Carregar dados de Analytics e META Ads
   const loadAnalyticsData = useCallback(async () => {
     setAnalyticsLoading(true);
+    setAdsError(null);
     try {
       const { start, end } = resolveMetaAdsRange();
       
@@ -125,10 +135,12 @@ export default function AdminDashboard() {
         end: endDateStr
       });
 
-      const [realtimeRes, trafficRes, fbRes] = await Promise.allSettled([
+      const [realtimeRes, trafficRes, fbRes, metricsRes] = await Promise.allSettled([
         fetch('/api/analytics/realtime').then(r => r.json()),
         fetch(`/api/analytics/traffic?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`).then(r => r.json()),
-        fetch(`/api/ads/insights?${metaParams.toString()}`).then(r => r.json())
+        fetch(`/api/ads/insights?${metaParams.toString()}`).then(r => r.json()),
+        // Nova API de métricas com ROAS inteligente
+        fetch(`/api/ads/metrics?${metaParams.toString()}`).then(r => r.json())
       ]);
 
       if (realtimeRes.status === 'fulfilled') {
@@ -141,9 +153,25 @@ export default function AdminDashboard() {
 
       if (fbRes.status === 'fulfilled' && Array.isArray(fbRes.value)) {
         setFbMetrics(calculateAdsMetrics(fbRes.value));
+      } else if (fbRes.status === 'rejected') {
+        console.error('❌ Erro ao carregar Meta Ads:', fbRes.reason);
+        setAdsError('Erro ao carregar dados do Meta Ads');
+      }
+      
+      // Processar métricas inteligentes (ROAS com fallback)
+      if (metricsRes.status === 'fulfilled' && metricsRes.value?.success) {
+        const data = metricsRes.value.data;
+        setSmartMetrics({
+          roas: data.roas || 0,
+          revenue: data.revenue || 0,
+          purchases: data.purchases || 0,
+          revenueSource: data._meta?.revenueSource || 'unknown'
+        });
+        console.log('✅ [Smart Metrics] ROAS:', data.roas, 'Fonte:', data._meta?.revenueSource);
       }
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
+      setAdsError('Erro ao carregar analytics');
     } finally {
       setAnalyticsLoading(false);
     }
@@ -624,6 +652,68 @@ Relatório gerado automaticamente pelo Gravador Médico
           </div>
         </motion.div>
       </div>
+
+      {/* ROAS Inteligente Card */}
+      {smartMetrics && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`rounded-2xl p-6 border-2 ${
+            smartMetrics.roas >= 1 
+              ? 'bg-gradient-to-br from-green-600/20 to-emerald-700/20 border-green-500/40' 
+              : 'bg-gradient-to-br from-amber-600/20 to-orange-700/20 border-amber-500/40'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Target className={`h-5 w-5 ${smartMetrics.roas >= 1 ? 'text-green-400' : 'text-amber-400'}`} />
+                <span className="text-sm font-medium text-gray-300">ROAS Inteligente ({periodLabel})</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  smartMetrics.revenueSource === 'meta_api' 
+                    ? 'bg-blue-500/30 text-blue-300' 
+                    : smartMetrics.revenueSource === 'database_attributed'
+                    ? 'bg-purple-500/30 text-purple-300'
+                    : 'bg-gray-500/30 text-gray-300'
+                }`}>
+                  {smartMetrics.revenueSource === 'meta_api' ? '📊 Meta API' : 
+                   smartMetrics.revenueSource === 'database_attributed' ? '🎯 Atribuído' : '💾 Banco'}
+                </span>
+              </div>
+              <p className={`text-4xl font-bold ${smartMetrics.roas >= 1 ? 'text-green-400' : 'text-amber-400'}`}>
+                {smartMetrics.roas.toFixed(2)}x
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {smartMetrics.purchases} compras = R$ {smartMetrics.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-400">Para cada R$ 1 investido</p>
+              <p className={`text-2xl font-bold ${smartMetrics.roas >= 1 ? 'text-green-300' : 'text-amber-300'}`}>
+                R$ {smartMetrics.roas.toFixed(2)}
+              </p>
+              {smartMetrics.roas < 1 && (
+                <p className="text-xs text-amber-400 mt-1">⚠️ ROAS abaixo de 1x</p>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Erro de Ads */}
+      {adsError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <p className="text-red-400 text-sm flex items-center gap-2">
+            <span>❌</span> {adsError}
+            <button 
+              onClick={loadAnalyticsData}
+              className="ml-auto text-xs bg-red-500/20 hover:bg-red-500/30 px-3 py-1 rounded"
+            >
+              Tentar novamente
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* ROI Big Numbers */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">

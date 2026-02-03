@@ -1,19 +1,81 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdsInsights, DatePreset, InsightLevel } from '@/lib/meta-marketing';
-
-const AD_ACCOUNT_ID = process.env.FACEBOOK_AD_ACCOUNT_ID;
-const ACCESS_TOKEN = process.env.FACEBOOK_ACCESS_TOKEN;
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+// =====================================================
+// CONFIG: Buscar credenciais do banco ou env
+// =====================================================
+
+interface MetaCredentials {
+  adAccountId: string;
+  accessToken: string;
+}
+
+async function getMetaCredentials(): Promise<MetaCredentials | null> {
+  // Access token sempre vem das variáveis de ambiente (segurança)
+  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
+  
+  if (!accessToken) {
+    console.error('❌ Access token Meta não configurado nas variáveis de ambiente');
+    return null;
+  }
+
+  try {
+    // 1. Tentar buscar account_id do banco de dados (integration_settings)
+    const { data: settings } = await supabaseAdmin
+      .from('integration_settings')
+      .select('meta_ad_account_id')
+      .single();
+
+    if (settings?.meta_ad_account_id) {
+      console.log('✅ Usando Meta credentials: Account ID do banco, Token das env vars');
+      return {
+        adAccountId: settings.meta_ad_account_id,
+        accessToken: accessToken,
+      };
+    }
+
+    // 2. Fallback: account_id das variáveis de ambiente
+    const envAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+
+    if (envAccountId) {
+      console.log('✅ Usando Meta credentials das variáveis de ambiente');
+      return {
+        adAccountId: envAccountId,
+        accessToken: accessToken,
+      };
+    }
+
+    console.error('❌ Meta Ad Account ID não configurado');
+    return null;
+  } catch (error) {
+    console.error('❌ Erro ao buscar credenciais Meta:', error);
+    
+    // Fallback para variáveis de ambiente em caso de erro
+    const envAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+
+    if (envAccountId) {
+      return { adAccountId: envAccountId, accessToken: accessToken };
+    }
+
+    return null;
+  }
+}
 
 // Busca todas as campanhas com status e data de criação (com paginação)
 async function getCampaignsMetadata(): Promise<Map<string, { status: string; created_time: string; name: string }>> {
   const map = new Map();
-  if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) return map;
+  
+  const credentials = await getMetaCredentials();
+  if (!credentials) return map;
+
+  const { adAccountId, accessToken } = credentials;
 
   try {
-    let url: string | null = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/campaigns?` + new URLSearchParams({
-      access_token: ACCESS_TOKEN,
+    let url: string | null = `https://graph.facebook.com/v19.0/act_${adAccountId}/campaigns?` + new URLSearchParams({
+      access_token: accessToken,
       fields: 'id,name,status,effective_status,created_time',
       limit: '500'
     });
@@ -44,11 +106,15 @@ async function getCampaignsMetadata(): Promise<Map<string, { status: string; cre
 
 async function getAdsetsMetadata(): Promise<Map<string, { status: string; created_time: string; name: string }>> {
   const map = new Map();
-  if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) return map;
+  
+  const credentials = await getMetaCredentials();
+  if (!credentials) return map;
+
+  const { adAccountId, accessToken } = credentials;
 
   try {
-    let url: string | null = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/adsets?` + new URLSearchParams({
-      access_token: ACCESS_TOKEN,
+    let url: string | null = `https://graph.facebook.com/v19.0/act_${adAccountId}/adsets?` + new URLSearchParams({
+      access_token: accessToken,
       fields: 'id,name,status,effective_status,created_time',
       limit: '500'
     });
@@ -78,11 +144,15 @@ async function getAdsetsMetadata(): Promise<Map<string, { status: string; create
 
 async function getAdsMetadata(): Promise<Map<string, { status: string; created_time: string; name: string }>> {
   const map = new Map();
-  if (!AD_ACCOUNT_ID || !ACCESS_TOKEN) return map;
+  
+  const credentials = await getMetaCredentials();
+  if (!credentials) return map;
+
+  const { adAccountId, accessToken } = credentials;
 
   try {
-    let url: string | null = `https://graph.facebook.com/v19.0/act_${AD_ACCOUNT_ID}/ads?` + new URLSearchParams({
-      access_token: ACCESS_TOKEN,
+    let url: string | null = `https://graph.facebook.com/v19.0/act_${adAccountId}/ads?` + new URLSearchParams({
+      access_token: accessToken,
       fields: 'id,name,status,effective_status,created_time',
       limit: '500'
     });

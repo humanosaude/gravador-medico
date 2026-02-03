@@ -255,8 +255,33 @@ export async function createAdSet(
 }
 
 // =====================================================
+// HELPER: Obter Page Access Token
+// =====================================================
+// O Page Access Token é necessário para criar AdCreatives
+// quando o app está em modo de desenvolvimento (evita erro 1885183)
+
+function getPageAccessToken(): string {
+  // Primeiro tenta o Page Access Token específico
+  const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
+  if (pageToken) {
+    console.log('🔑 Usando META_PAGE_ACCESS_TOKEN para criação de AdCreative');
+    return pageToken;
+  }
+  
+  // Fallback para o token principal
+  const mainToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || '';
+  console.log('🔑 Usando token principal (fallback)');
+  return mainToken;
+}
+
+// =====================================================
 // CRIAR AD CREATIVE
 // =====================================================
+// ✅ MODIFICADO: Usa Page Access Token via API direta 
+// para evitar erro 1885183 (app em modo de desenvolvimento)
+
+const META_API_VERSION = 'v21.0';
+const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
 export async function createAdCreative(
   adAccountId: string,
@@ -271,39 +296,62 @@ export async function createAdCreative(
   }
 ): Promise<string> {
   try {
-    const account = new AdAccount(normalizeAdAccountId(adAccountId));
+    // ✅ Usar Page Access Token para evitar erro de Development Mode
+    const accessToken = getPageAccessToken();
+    const url = `${META_BASE_URL}/act_${adAccountId.replace('act_', '')}/adcreatives`;
 
-    const creativeData = {
-      name: params.name,
-      object_story_spec: {
-        page_id: params.pageId,
-        link_data: {
-          image_hash: params.imageHash,
-          link: params.linkUrl,
-          message: params.primaryText,
-          name: params.headline,
-          call_to_action: {
-            type: params.ctaType || 'SHOP_NOW',
-            value: {
-              link: params.linkUrl,
-            },
+    const objectStorySpec = {
+      page_id: params.pageId,
+      link_data: {
+        image_hash: params.imageHash,
+        link: params.linkUrl,
+        message: params.primaryText,
+        name: params.headline,
+        call_to_action: {
+          type: params.ctaType || 'SHOP_NOW',
+          value: {
+            link: params.linkUrl,
           },
         },
       },
     };
 
-    console.log('🎨 Criando Ad Creative:', creativeData);
+    console.log('🎨 Criando Ad Creative (API Direta)...');
+    console.log('   URL:', url);
+    console.log('   Page ID:', params.pageId);
+    console.log('   Image Hash:', params.imageHash);
+    console.log('   Token Type:', process.env.META_PAGE_ACCESS_TOKEN ? 'Page Token' : 'User Token');
 
-    const result = await account.createAdCreative(
-      [AdCreative.Fields.id, AdCreative.Fields.name],
-      creativeData
-    );
+    const formParams = new URLSearchParams({
+      access_token: accessToken,
+      name: params.name,
+      object_story_spec: JSON.stringify(objectStorySpec),
+    });
 
-    const creativeId = result._data?.id || result.id;
-    console.log('✅ Ad Creative criado. ID:', creativeId);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formParams.toString(),
+    });
 
-    return creativeId;
-  } catch (error) {
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error('❌ Erro da API Meta ao criar AdCreative:');
+      console.error('   Código:', data.error.code);
+      console.error('   Subcode:', data.error.error_subcode);
+      console.error('   Mensagem:', data.error.message);
+      console.error('   User Message:', data.error.error_user_msg);
+      console.error('   Tipo:', data.error.type);
+      throw new Error(`Erro ao criar ad creative: ${data.error.error_user_msg || data.error.message}`);
+    }
+
+    console.log('✅ Ad Creative criado. ID:', data.id);
+    return data.id;
+  } catch (error: any) {
+    if (error.message?.includes('Erro ao criar ad creative')) {
+      throw error;
+    }
     handleMetaError(error);
   }
 }

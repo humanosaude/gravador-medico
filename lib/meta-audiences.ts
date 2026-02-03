@@ -9,21 +9,84 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Configuração Meta
-const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
-const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
-const META_PIXEL_ID = process.env.META_PIXEL_ID;
-const META_PAGE_ID = process.env.META_PAGE_ID;
-const META_INSTAGRAM_ID = process.env.META_INSTAGRAM_ID;
-
-const API_VERSION = 'v21.0';
-const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
-
-// Supabase para cache de audiences
+// Supabase para cache de audiences e configurações
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// =====================================================
+// CONFIG: Buscar credenciais do banco ou env
+// =====================================================
+
+interface MetaConfig {
+  accessToken: string;
+  adAccountId: string;
+  pixelId?: string;
+  pageId?: string;
+  instagramId?: string;
+}
+
+let cachedConfig: MetaConfig | null = null;
+let configCacheTime: number = 0;
+const CONFIG_CACHE_TTL = 60000; // 1 minuto
+
+async function getMetaConfig(): Promise<MetaConfig | null> {
+  // Verifica cache
+  if (cachedConfig && Date.now() - configCacheTime < CONFIG_CACHE_TTL) {
+    return cachedConfig;
+  }
+
+  // Access token SEMPRE vem das variáveis de ambiente (segurança)
+  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
+  
+  if (!accessToken) {
+    console.error('❌ Access token Meta não configurado nas variáveis de ambiente');
+    return null;
+  }
+
+  try {
+    // 1. Tentar buscar account_id do banco de dados (integration_settings)
+    const { data: settings } = await supabaseAdmin
+      .from('integration_settings')
+      .select('meta_ad_account_id, meta_pixel_id, meta_page_id, meta_instagram_id')
+      .single();
+
+    if (settings?.meta_ad_account_id) {
+      cachedConfig = {
+        accessToken: accessToken,
+        adAccountId: settings.meta_ad_account_id,
+        pixelId: settings.meta_pixel_id || process.env.META_PIXEL_ID,
+        pageId: settings.meta_page_id || process.env.META_PAGE_ID,
+        instagramId: settings.meta_instagram_id || process.env.META_INSTAGRAM_ID,
+      };
+      configCacheTime = Date.now();
+      return cachedConfig;
+    }
+  } catch (error) {
+    console.error('⚠️ Erro ao buscar config do banco:', error);
+  }
+
+  // 2. Fallback para variáveis de ambiente
+  const envAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+
+  if (envAccountId) {
+    cachedConfig = {
+      accessToken: accessToken,
+      adAccountId: envAccountId,
+      pixelId: process.env.META_PIXEL_ID,
+      pageId: process.env.META_PAGE_ID,
+      instagramId: process.env.META_INSTAGRAM_ID,
+    };
+    configCacheTime = Date.now();
+    return cachedConfig;
+  }
+
+  return null;
+}
+
+const API_VERSION = 'v21.0';
+const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
 
 // ============================================
 // TIPOS
@@ -67,6 +130,11 @@ async function metaApiCall<T>(
   method: 'GET' | 'POST' | 'DELETE' = 'GET',
   body?: Record<string, unknown>
 ): Promise<T> {
+  const config = await getMetaConfig();
+  if (!config) {
+    throw new Error('Meta credentials not configured');
+  }
+
   const url = `${BASE_URL}${endpoint}`;
   
   const options: RequestInit = {
@@ -77,7 +145,7 @@ async function metaApiCall<T>(
   };
 
   if (method === 'GET') {
-    const params = new URLSearchParams({ access_token: META_ACCESS_TOKEN! });
+    const params = new URLSearchParams({ access_token: config.accessToken });
     if (body) {
       Object.entries(body).forEach(([key, value]) => {
         params.append(key, typeof value === 'string' ? value : JSON.stringify(value));
@@ -91,7 +159,7 @@ async function metaApiCall<T>(
 
   if (method === 'POST') {
     const formData = new URLSearchParams();
-    formData.append('access_token', META_ACCESS_TOKEN!);
+    formData.append('access_token', config.accessToken);
     if (body) {
       Object.entries(body).forEach(([key, value]) => {
         formData.append(key, typeof value === 'string' ? value : JSON.stringify(value));
@@ -220,6 +288,11 @@ export async function filterValidAudiences(
 export async function createVideoViewAudience(
   config: VideoViewAudienceConfig
 ): Promise<{ audienceId: string; name: string }> {
+  const metaConfig = await getMetaConfig();
+  if (!metaConfig) {
+    throw new Error('Meta credentials not configured');
+  }
+
   const { videoId, videoName, retentionSeconds, retentionDays = 365 } = config;
 
   // Mapear segundos para o campo da API
@@ -242,7 +315,7 @@ export async function createVideoViewAudience(
         {
           event_sources: [
             {
-              id: META_PAGE_ID,
+              id: metaConfig.pageId,
               type: 'page'
             }
           ],
@@ -268,7 +341,7 @@ export async function createVideoViewAudience(
   };
 
   const response = await metaApiCall<{ id: string }>(
-    `/act_${META_AD_ACCOUNT_ID}/customaudiences`,
+    `/act_${metaConfig.adAccountId}/customaudiences`,
     'POST',
     {
       name: audienceName,
@@ -303,6 +376,11 @@ export async function createVideoViewAudience(
 export async function createLookalike(
   config: LookalikeConfig
 ): Promise<{ audienceId: string; name: string }> {
+  const metaConfig = await getMetaConfig();
+  if (!metaConfig) {
+    throw new Error('Meta credentials not configured');
+  }
+
   const { sourceAudienceId, country, ratio, name } = config;
 
   const percentLabel = Math.round(ratio * 100);
@@ -319,7 +397,7 @@ export async function createLookalike(
   };
 
   const response = await metaApiCall<{ id: string }>(
-    `/act_${META_AD_ACCOUNT_ID}/customaudiences`,
+    `/act_${metaConfig.adAccountId}/customaudiences`,
     'POST',
     {
       name: audienceName,
@@ -348,7 +426,8 @@ export async function createLookalike(
 export async function createInstagramEngagementAudience(
   retentionDays: number = 365
 ): Promise<{ audienceId: string; name: string }> {
-  if (!META_INSTAGRAM_ID) {
+  const metaConfig = await getMetaConfig();
+  if (!metaConfig?.instagramId) {
     throw new Error('META_INSTAGRAM_ID não configurado');
   }
 
@@ -359,7 +438,7 @@ export async function createInstagramEngagementAudience(
       operator: 'or',
       rules: [
         {
-          event_sources: [{ id: META_INSTAGRAM_ID, type: 'ig_business' }],
+          event_sources: [{ id: metaConfig.instagramId, type: 'ig_business' }],
           retention_seconds: retentionDays * 24 * 60 * 60,
           filter: {
             operator: 'or',
@@ -378,7 +457,7 @@ export async function createInstagramEngagementAudience(
   };
 
   const response = await metaApiCall<{ id: string }>(
-    `/act_${META_AD_ACCOUNT_ID}/customaudiences`,
+    `/act_${metaConfig.adAccountId}/customaudiences`,
     'POST',
     {
       name: audienceName,
@@ -409,7 +488,8 @@ export async function createPixelAudience(
   eventName: 'PageView' | 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase',
   retentionDays: number = 30
 ): Promise<{ audienceId: string; name: string }> {
-  if (!META_PIXEL_ID) {
+  const metaConfig = await getMetaConfig();
+  if (!metaConfig?.pixelId) {
     throw new Error('META_PIXEL_ID não configurado');
   }
 
@@ -420,7 +500,7 @@ export async function createPixelAudience(
       operator: 'or',
       rules: [
         {
-          event_sources: [{ id: META_PIXEL_ID, type: 'pixel' }],
+          event_sources: [{ id: metaConfig.pixelId, type: 'pixel' }],
           retention_seconds: retentionDays * 24 * 60 * 60,
           filter: {
             operator: 'and',
@@ -434,7 +514,7 @@ export async function createPixelAudience(
   };
 
   const response = await metaApiCall<{ id: string }>(
-    `/act_${META_AD_ACCOUNT_ID}/customaudiences`,
+    `/act_${metaConfig.adAccountId}/customaudiences`,
     'POST',
     {
       name: audienceName,
@@ -600,6 +680,11 @@ export async function getFunnelAudience(
  * Lista todos os Custom Audiences da conta
  */
 export async function listAllAudiences(): Promise<AudienceConfig[]> {
+  const metaConfig = await getMetaConfig();
+  if (!metaConfig) {
+    throw new Error('Meta credentials not configured');
+  }
+
   const response = await metaApiCall<{ 
     data: Array<{ 
       id: string; 
@@ -609,7 +694,7 @@ export async function listAllAudiences(): Promise<AudienceConfig[]> {
       approximate_count_upper_bound?: number;
     }> 
   }>(
-    `/act_${META_AD_ACCOUNT_ID}/customaudiences`,
+    `/act_${metaConfig.adAccountId}/customaudiences`,
     'GET',
     { fields: 'id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound' }
   );

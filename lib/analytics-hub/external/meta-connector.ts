@@ -12,6 +12,13 @@
  */
 
 import { unstable_cache } from 'next/cache';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client para buscar credenciais
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // =====================================================
 // TYPES
@@ -65,26 +72,80 @@ export interface MetaConnectorResult {
 }
 
 // =====================================================
-// CONFIGURATION
+// CONFIGURATION - DINÂMICA (BUSCA DO BANCO)
 // =====================================================
 
-const META_CONFIG = {
-  adAccountId: process.env.FACEBOOK_AD_ACCOUNT_ID,
-  accessToken: process.env.FACEBOOK_ACCESS_TOKEN,
-  pixelId: process.env.FACEBOOK_PIXEL_ID,
-  testEventCode: process.env.META_TEST_EVENT_CODE,
-  apiVersion: 'v19.0',
-  baseUrl: 'https://graph.facebook.com',
-};
+interface MetaConfig {
+  adAccountId: string | null;
+  accessToken: string | null;
+  pixelId: string | null;
+  testEventCode: string | null;
+  apiVersion: string;
+  baseUrl: string;
+}
+
+let cachedMetaConfig: MetaConfig | null = null;
+let configCacheTime: number = 0;
+const CONFIG_CACHE_TTL = 60000; // 1 minuto
+
+async function getMetaConfig(): Promise<MetaConfig> {
+  // Verifica cache
+  if (cachedMetaConfig && Date.now() - configCacheTime < CONFIG_CACHE_TTL) {
+    return cachedMetaConfig;
+  }
+
+  // Access token SEMPRE vem das variáveis de ambiente (segurança)
+  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || null;
+
+  let config: MetaConfig = {
+    adAccountId: null,
+    accessToken: accessToken,
+    pixelId: process.env.FACEBOOK_PIXEL_ID || null,
+    testEventCode: process.env.META_TEST_EVENT_CODE || null,
+    apiVersion: 'v19.0',
+    baseUrl: 'https://graph.facebook.com',
+  };
+
+  try {
+    // 1. Tentar buscar account_id do banco de dados
+    const { data: settings } = await supabaseAdmin
+      .from('integration_settings')
+      .select('meta_ad_account_id, meta_pixel_id')
+      .single();
+
+    if (settings?.meta_ad_account_id) {
+      config.adAccountId = settings.meta_ad_account_id;
+      config.pixelId = settings.meta_pixel_id || config.pixelId;
+      cachedMetaConfig = config;
+      configCacheTime = Date.now();
+      return config;
+    }
+  } catch (error) {
+    console.warn('⚠️ [MetaConnector] Erro ao buscar config do banco:', error);
+  }
+
+  // 2. Fallback para variáveis de ambiente
+  config.adAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID || null;
+  
+  cachedMetaConfig = config;
+  configCacheTime = Date.now();
+  return config;
+}
 
 // Cache duration: 5 minutes
 const CACHE_DURATION = 5 * 60;
 
 // Action types para extração de métricas
+// ⚠️ IMPORTANTE: Usar APENAS UM tipo de cada evento para evitar duplicação
+// O Meta retorna múltiplas versões do mesmo evento (purchase, omni_purchase, fb_pixel_purchase)
+// Todos representam a MESMA transação, então só contamos uma vez
 const ACTION_TYPES = {
-  purchases: ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'],
-  leads: ['lead', 'offsite_conversion.fb_pixel_lead'],
-  checkout: ['omni_initiated_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'],
+  // Compras: usar APENAS o evento do Pixel (mais confiável)
+  purchases: ['offsite_conversion.fb_pixel_purchase'],
+  // Leads: usar APENAS o evento do Pixel
+  leads: ['offsite_conversion.fb_pixel_lead'],
+  // Checkout: usar APENAS o evento do Pixel
+  checkout: ['offsite_conversion.fb_pixel_initiate_checkout'],
 } as const;
 
 // =====================================================
@@ -114,8 +175,9 @@ function formatDateForMeta(date: Date): string {
 /**
  * Valida se as credenciais estão configuradas
  */
-function isConfigured(): boolean {
-  return !!(META_CONFIG.adAccountId && META_CONFIG.accessToken);
+async function isConfigured(): Promise<boolean> {
+  const config = await getMetaConfig();
+  return !!(config.adAccountId && config.accessToken);
 }
 
 // =====================================================
@@ -130,7 +192,9 @@ async function fetchAdsInsights(
   endDate: Date,
   level: 'account' | 'campaign' = 'account'
 ): Promise<any[]> {
-  if (!isConfigured()) {
+  const config = await getMetaConfig();
+  
+  if (!config.adAccountId || !config.accessToken) {
     console.warn('⚠️ [MetaConnector] Credenciais não configuradas');
     return [];
   }
@@ -156,13 +220,13 @@ async function fetchAdsInsights(
   });
 
   const url = new URL(
-    `${META_CONFIG.baseUrl}/${META_CONFIG.apiVersion}/act_${META_CONFIG.adAccountId}/insights`
+    `${config.baseUrl}/${config.apiVersion}/act_${config.adAccountId}/insights`
   );
   
   url.searchParams.set('fields', fields);
   url.searchParams.set('time_range', timeRange);
   url.searchParams.set('level', level);
-  url.searchParams.set('access_token', META_CONFIG.accessToken!);
+  url.searchParams.set('access_token', config.accessToken);
 
   try {
     const response = await fetch(url.toString(), {
@@ -188,26 +252,28 @@ async function fetchAdsInsights(
  * Busca status do Pixel/CAPI
  */
 async function fetchCapiStatus(): Promise<MetaCapiStatus> {
+  const config = await getMetaConfig();
+  
   const status: MetaCapiStatus = {
-    isConfigured: !!(META_CONFIG.pixelId && META_CONFIG.accessToken),
-    pixelId: META_CONFIG.pixelId || null,
+    isConfigured: !!(config.pixelId && config.accessToken),
+    pixelId: config.pixelId || null,
     lastEventSent: null,
     eventsReceived24h: 0,
     matchRate: 0,
-    testMode: !!META_CONFIG.testEventCode,
+    testMode: !!config.testEventCode,
   };
 
-  if (!status.isConfigured || !META_CONFIG.pixelId) {
+  if (!status.isConfigured || !config.pixelId) {
     return status;
   }
 
   try {
     // Buscar estatísticas do pixel
     const url = new URL(
-      `${META_CONFIG.baseUrl}/${META_CONFIG.apiVersion}/${META_CONFIG.pixelId}`
+      `${config.baseUrl}/${config.apiVersion}/${config.pixelId}`
     );
     url.searchParams.set('fields', 'last_fired_time,is_unavailable');
-    url.searchParams.set('access_token', META_CONFIG.accessToken!);
+    url.searchParams.set('access_token', config.accessToken!);
 
     const response = await fetch(url.toString());
     if (response.ok) {
@@ -217,9 +283,9 @@ async function fetchCapiStatus(): Promise<MetaCapiStatus> {
 
     // Buscar estatísticas de eventos (últimas 24h)
     const statsUrl = new URL(
-      `${META_CONFIG.baseUrl}/${META_CONFIG.apiVersion}/${META_CONFIG.pixelId}/stats`
+      `${config.baseUrl}/${config.apiVersion}/${config.pixelId}/stats`
     );
-    statsUrl.searchParams.set('access_token', META_CONFIG.accessToken!);
+    statsUrl.searchParams.set('access_token', config.accessToken!);
 
     const statsResponse = await fetch(statsUrl.toString());
     if (statsResponse.ok) {
@@ -425,15 +491,16 @@ export const getCapiStatus = unstable_cache(
 /**
  * Verifica se a integração Meta está configurada
  */
-export function isMetaConfigured(): boolean {
+export async function isMetaConfigured(): Promise<boolean> {
   return isConfigured();
 }
 
 /**
  * Verifica se o CAPI (Pixel) está configurado
  */
-export function isCapiConfigured(): boolean {
-  return !!(META_CONFIG.pixelId && META_CONFIG.accessToken);
+export async function isCapiConfigured(): Promise<boolean> {
+  const config = await getMetaConfig();
+  return !!(config.pixelId && config.accessToken);
 }
 
 /**
@@ -444,4 +511,7 @@ export async function invalidateMetaCache(): Promise<void> {
   // O Next.js não tem uma API pública para invalidar cache por tag
   // Isso seria feito via revalidateTag('meta-ads') em uma Server Action
   console.log('⚠️ [MetaConnector] Cache invalidation requested');
+  // Também limpa cache interno
+  cachedMetaConfig = null;
+  configCacheTime = 0;
 }

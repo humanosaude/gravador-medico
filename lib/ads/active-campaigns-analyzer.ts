@@ -43,19 +43,50 @@ export interface DuplicationCheckResult {
 // BUSCAR ANÚNCIOS ATIVOS DA META
 // =====================================================
 
-export async function fetchActiveCampaigns(accountId: string): Promise<ActiveCampaignAd[]> {
+async function getMetaCredentials() {
+  try {
+    const { data: settings } = await supabase
+      .from('integration_settings')
+      .select('meta_ad_account_id, meta_access_token')
+      .single();
+    
+    if (settings?.meta_access_token && settings?.meta_ad_account_id) {
+      return {
+        accessToken: settings.meta_access_token,
+        adAccountId: settings.meta_ad_account_id,
+      };
+    }
+  } catch (e) {
+    console.warn('[Active Campaigns] Erro ao buscar config do banco:', e);
+  }
+  
+  // Fallback para env
+  return {
+    accessToken: process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN,
+    adAccountId: process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID,
+  };
+}
+
+export async function fetchActiveCampaigns(accountId?: string): Promise<ActiveCampaignAd[]> {
   try {
     console.log('🔍 [Active Campaigns] Buscando anúncios ativos...');
 
-    const accessToken = process.env.FACEBOOK_ACCESS_TOKEN;
+    const creds = await getMetaCredentials();
+    const accessToken = creds.accessToken;
+    const finalAccountId = accountId || creds.adAccountId;
     
     if (!accessToken) {
-      console.warn('⚠️ [Active Campaigns] FACEBOOK_ACCESS_TOKEN não configurado');
+      console.warn('⚠️ [Active Campaigns] Access token não configurado');
+      return [];
+    }
+
+    if (!finalAccountId) {
+      console.warn('⚠️ [Active Campaigns] Ad Account ID não configurado');
       return [];
     }
 
     const response = await fetch(
-      `https://graph.facebook.com/v24.0/act_${accountId}/ads?` +
+      `https://graph.facebook.com/v24.0/act_${finalAccountId}/ads?` +
       `fields=id,name,creative{title,body,link_description},status,created_time&` +
       `effective_status=["ACTIVE","PAUSED"]&` +
       `limit=100&` +
@@ -83,7 +114,9 @@ export async function fetchActiveCampaigns(accountId: string): Promise<ActiveCam
     console.log(`✅ [Active Campaigns] ${ads.length} anúncios encontrados`);
     
     // Salvar no banco para cache
-    await saveActiveCampaignsCache(accountId, ads);
+    if (finalAccountId) {
+      await saveActiveCampaignsCache(finalAccountId, ads);
+    }
     
     return ads;
 

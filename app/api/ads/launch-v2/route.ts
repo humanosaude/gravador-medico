@@ -27,6 +27,16 @@ import {
 import { getFunnelAudience, type FunnelStage } from '@/lib/meta-audiences';
 import { generateAdNames, inferFunnelStage, type NamingInput } from '@/lib/utils/ad-naming';
 import type { GeneratedCopy } from '@/lib/ads/types';
+import { getOptimizationConfig, getCampaignObjective, getRecommendedCTA, requiresPixel } from '@/lib/ads/optimization-config';
+import { 
+  getFunnelStrategy, 
+  buildStrategyTargeting, 
+  calculateAdjustedBudget, 
+  getStrategyDescription,
+  type FunnelStage as FunnelStageType,
+  type ObjectiveType,
+  type AudienceIds 
+} from '@/lib/ads/funnel-strategy';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180; // 3 minutos para vídeos
@@ -61,37 +71,87 @@ interface VideoStatus {
 // SPENT_CREDITS, LISTING_INTERACTION, D2_RETENTION, D7_RETENTION, OTHER
 type CustomEventType = 'PURCHASE' | 'LEAD' | 'COMPLETE_REGISTRATION' | 'ADD_TO_CART' | 'INITIATED_CHECKOUT' | 'CONTENT_VIEW' | 'SEARCH' | 'ADD_PAYMENT_INFO' | 'ADD_TO_WISHLIST' | 'CONTACT';
 
+// ✅ CORRIGIDO: Mapear optimization_goal corretamente
+type OptimizationGoal = 'OFFSITE_CONVERSIONS' | 'LINK_CLICKS' | 'LANDING_PAGE_VIEWS' | 'REACH' | 'IMPRESSIONS';
+
+interface AdSetGoalConfig {
+  optimization_goal: OptimizationGoal;
+  custom_event_type?: CustomEventType;
+  use_pixel: boolean;
+}
+
+/**
+ * ✅ CORRIGIDO: Determinar configuração do AdSet baseado no objetivo
+ * - TRÁFEGO: LINK_CLICKS (sem pixel/promoted_object)
+ * - CONVERSÃO/VENDAS: OFFSITE_CONVERSIONS + pixel + evento
+ */
+function getAdSetConfig(funnelStage: string, objectiveType: string): AdSetGoalConfig {
+  // ✅ Para TRÁFEGO - usar LINK_CLICKS (não precisa de pixel/evento)
+  if (objectiveType === 'OUTCOME_TRAFFIC' || objectiveType.includes('TRAFEGO') || objectiveType.includes('TRAFFIC')) {
+    return {
+      optimization_goal: 'LINK_CLICKS',
+      use_pixel: false,
+      // custom_event_type não é necessário para LINK_CLICKS
+    };
+  }
+  
+  // ✅ Para VENDAS - usar OFFSITE_CONVERSIONS + pixel + evento
+  if (objectiveType === 'OUTCOME_SALES' || objectiveType.includes('CONVERSAO') || objectiveType.includes('SALES')) {
+    let eventType: CustomEventType = 'PURCHASE';
+    
+    switch (funnelStage) {
+      case 'TOPO':
+        eventType = 'CONTENT_VIEW';
+        break;
+      case 'MEIO':
+        eventType = 'ADD_TO_CART';
+        break;
+      case 'FUNDO':
+        eventType = 'PURCHASE';
+        break;
+    }
+    
+    return {
+      optimization_goal: 'OFFSITE_CONVERSIONS',
+      custom_event_type: eventType,
+      use_pixel: true,
+    };
+  }
+  
+  // ✅ Para LEADS - usar OFFSITE_CONVERSIONS + pixel + LEAD
+  if (objectiveType === 'OUTCOME_LEADS' || objectiveType.includes('LEAD')) {
+    let eventType: CustomEventType = 'LEAD';
+    
+    switch (funnelStage) {
+      case 'TOPO':
+        eventType = 'CONTENT_VIEW';
+        break;
+      case 'MEIO':
+        eventType = 'LEAD';
+        break;
+      case 'FUNDO':
+        eventType = 'COMPLETE_REGISTRATION';
+        break;
+    }
+    
+    return {
+      optimization_goal: 'OFFSITE_CONVERSIONS',
+      custom_event_type: eventType,
+      use_pixel: true,
+    };
+  }
+  
+  // Default: LINK_CLICKS (mais seguro, não requer pixel)
+  return {
+    optimization_goal: 'LINK_CLICKS',
+    use_pixel: false,
+  };
+}
+
+// ✅ DEPRECATED: Manter para compatibilidade
 function getCustomEventType(funnelStage: string, objectiveType: string): CustomEventType {
-  // ✅ Mapeamento Meta API v24.0 por funil
-  
-  if (objectiveType === 'OUTCOME_SALES') {
-    switch (funnelStage) {
-      case 'TOPO':
-        return 'CONTENT_VIEW'; // ✅ Visualização de conteúdo (CORRETO para Meta API)
-      case 'MEIO':
-        return 'ADD_TO_CART'; // Adicionar ao carrinho
-      case 'FUNDO':
-        return 'PURCHASE'; // Compra
-      default:
-        return 'PURCHASE';
-    }
-  }
-  
-  if (objectiveType === 'OUTCOME_LEADS') {
-    switch (funnelStage) {
-      case 'TOPO':
-        return 'CONTENT_VIEW'; // ✅ CONTENT_VIEW ao invés de PAGE_VIEW
-      case 'MEIO':
-        return 'LEAD'; // Lead gerado
-      case 'FUNDO':
-        return 'COMPLETE_REGISTRATION'; // Registro completo
-      default:
-        return 'LEAD';
-    }
-  }
-  
-  // Default para OUTCOME_TRAFFIC ou outros
-  return 'CONTENT_VIEW'; // ✅ CONTENT_VIEW ao invés de VIEW_CONTENT
+  const config = getAdSetConfig(funnelStage, objectiveType);
+  return config.custom_event_type || 'CONTENT_VIEW';
 }
 
 // =====================================================
@@ -231,6 +291,135 @@ async function uploadToSupabase(
 }
 
 // =====================================================
+// HELPER: Download de Vídeo do Supabase
+// =====================================================
+
+async function downloadVideoFromUrl(url: string): Promise<Buffer> {
+  console.log('⬇️ Baixando vídeo do Supabase:', url);
+  
+  try {
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+    console.log(`✅ Vídeo baixado: ${sizeMB} MB (${buffer.length} bytes)`);
+    
+    if (buffer.length === 0) {
+      throw new Error('Vídeo baixado está vazio (0 bytes)!');
+    }
+    
+    return buffer;
+    
+  } catch (error: any) {
+    console.error('❌ Erro ao baixar vídeo:', error.message);
+    throw new Error(`Falha no download do vídeo: ${error.message}`);
+  }
+}
+
+// =====================================================
+// HELPER: Extrair Thumbnail do Vídeo (FFmpeg)
+// =====================================================
+
+async function extractThumbnailFromVideo(videoBuffer: Buffer): Promise<Buffer> {
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  
+  const execAsync = promisify(exec);
+  
+  const tempVideoPath = path.join('/tmp', `video-thumb-${Date.now()}.mp4`);
+  const tempThumbPath = path.join('/tmp', `thumb-${Date.now()}.jpg`);
+  
+  console.log('🖼️ Extraindo thumbnail do vídeo...');
+  
+  try {
+    // Salvar vídeo temporariamente
+    await fs.writeFile(tempVideoPath, videoBuffer);
+    
+    // Extrair frame aos 1 segundo (FFmpeg)
+    await execAsync(
+      `ffmpeg -i "${tempVideoPath}" -ss 00:00:01 -vframes 1 -q:v 2 -y "${tempThumbPath}"`,
+      { timeout: 30000 }
+    );
+    
+    // Ler thumbnail
+    const thumbnailBuffer = await fs.readFile(tempThumbPath);
+    
+    const sizeMB = (thumbnailBuffer.length / 1024 / 1024).toFixed(2);
+    console.log(`✅ Thumbnail extraída: ${sizeMB} MB`);
+    
+    // Limpar arquivos temporários
+    await fs.unlink(tempVideoPath).catch(() => {});
+    await fs.unlink(tempThumbPath).catch(() => {});
+    
+    return thumbnailBuffer;
+    
+  } catch (error: any) {
+    console.error('❌ Erro ao extrair thumbnail:', error.message);
+    // Limpar em caso de erro
+    const fs2 = await import('fs/promises');
+    await fs2.unlink(tempVideoPath).catch(() => {});
+    await fs2.unlink(tempThumbPath).catch(() => {});
+    throw error;
+  }
+}
+
+// =====================================================
+// HELPER: Upload de Thumbnail para Meta (Ad Image)
+// =====================================================
+
+async function uploadThumbnailToMeta(
+  thumbnailBuffer: Buffer,
+  adAccountId: string,
+  accessToken: string
+): Promise<string> {
+  console.log('📤 Fazendo upload da thumbnail para Meta...');
+  
+  const url = `${META_BASE_URL}/act_${adAccountId}/adimages`;
+  
+  // Converter Buffer para ArrayBuffer para compatibilidade com Blob
+  const arrayBuffer = thumbnailBuffer.buffer.slice(
+    thumbnailBuffer.byteOffset, 
+    thumbnailBuffer.byteOffset + thumbnailBuffer.byteLength
+  ) as ArrayBuffer;
+  const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+  
+  const formData = new FormData();
+  formData.append('filename', blob, 'thumbnail.jpg');
+  formData.append('access_token', accessToken);
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  const data = await response.json();
+  
+  if (data.error) {
+    console.error('❌ Erro ao fazer upload da thumbnail:', data.error);
+    throw new Error(`Upload da thumbnail falhou: ${data.error.message}`);
+  }
+  
+  // O Meta retorna { images: { "thumbnail.jpg": { hash: "xxx" } } }
+  const imageHash = data.images?.['thumbnail.jpg']?.hash;
+  
+  if (!imageHash) {
+    console.error('❌ Meta não retornou image_hash:', data);
+    throw new Error('Meta não retornou image_hash para a thumbnail');
+  }
+  
+  console.log(`✅ Thumbnail uploaded. Hash: ${imageHash}`);
+  return imageHash;
+}
+
+// =====================================================
 // HELPER: Upload de Vídeo para Meta (Chunked)
 // =====================================================
 
@@ -307,17 +496,113 @@ async function finishVideoUpload(
   return data.video_id;
 }
 
+// =====================================================
+// HELPER: Upload de vídeo para Meta (CORRIGIDO)
+// - Vídeos < 10MB: Upload DIRETO (sem chunks)
+// - Vídeos > 10MB: Resumable upload (com chunks)
+// =====================================================
+
 async function uploadVideoToMeta(
-  file: File,
+  fileOrBuffer: File | Buffer,
   adAccountId: string,
-  accessToken: string
+  accessToken: string,
+  fileName: string = 'video.mp4'
 ): Promise<string> {
-  console.log(`📹 Iniciando upload de vídeo: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  let buffer: Buffer;
+  let displayName: string;
+  
+  // Suportar tanto File quanto Buffer
+  if (Buffer.isBuffer(fileOrBuffer)) {
+    buffer = fileOrBuffer;
+    displayName = fileName;
+  } else {
+    // É um File
+    const file = fileOrBuffer as File;
+    displayName = file.name || fileName;
+    
+    if (file.size === 0) {
+      throw new Error(`Arquivo de vídeo está vazio (0 bytes)! Use downloadVideoFromUrl para baixar primeiro.`);
+    }
+    
+    const arrayBuffer = await file.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
+  }
+  
   const fileSize = buffer.length;
+  const fileSizeMB = (fileSize / 1024 / 1024).toFixed(2);
+  
+  if (fileSize === 0) {
+    throw new Error('Buffer de vídeo está vazio (0 bytes)!');
+  }
 
+  console.log(`📹 Iniciando upload de vídeo: ${displayName} (${fileSizeMB}MB)`);
+
+  // =====================================================
+  // ✅ VÍDEOS PEQUENOS (< 10MB): Upload DIRETO
+  // =====================================================
+  if (fileSize < 10 * 1024 * 1024) {
+    console.log('📤 Usando upload DIRETO (vídeo < 10MB)...');
+    
+    try {
+      // Criar FormData com o vídeo como source
+      // Converter Buffer para ArrayBuffer para compatibilidade com Blob
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+      const blob = new Blob([arrayBuffer], { type: 'video/mp4' });
+      
+      const formData = new FormData();
+      formData.append('source', blob, displayName);
+      formData.append('access_token', accessToken);
+      formData.append('title', displayName);
+      
+      const uploadUrl = `${META_BASE_URL}/act_${adAccountId}/advideos`;
+      console.log(`📤 Enviando para: ${uploadUrl}`);
+      
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+        // NÃO adicionar Content-Type - FormData define automaticamente com boundary
+      });
+      
+      const responseText = await uploadResponse.text();
+      console.log(`📥 Resposta da Meta (status ${uploadResponse.status}):`, responseText.substring(0, 500));
+      
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Resposta inválida da Meta: ${responseText}`);
+      }
+      
+      if (result.error) {
+        console.error('❌ Erro da Meta no upload direto:');
+        console.error('   Código:', result.error.code);
+        console.error('   Mensagem:', result.error.message);
+        console.error('   Tipo:', result.error.type);
+        throw new Error(`Upload direto falhou: ${result.error.message}`);
+      }
+      
+      if (!result.id) {
+        throw new Error(`API não retornou ID do vídeo. Resposta: ${JSON.stringify(result)}`);
+      }
+      
+      console.log(`✅ Upload direto concluído! Video ID: ${result.id}`);
+      
+      // Aguardar 3 segundos para processamento inicial do Meta
+      await sleep(3000);
+      
+      return result.id;
+      
+    } catch (error) {
+      console.error('❌ Erro no upload direto:', error);
+      throw error;
+    }
+  }
+
+  // =====================================================
+  // ✅ VÍDEOS GRANDES (>= 10MB): Resumable upload
+  // =====================================================
+  console.log('📤 Usando RESUMABLE upload (vídeo >= 10MB)...');
+  
   // 1. Iniciar sessão de upload
   const session = await startVideoUploadSession(adAccountId, fileSize, accessToken);
   console.log('📹 Sessão de upload iniciada:', session.video_id);
@@ -338,7 +623,7 @@ async function uploadVideoToMeta(
   }
 
   // 3. Finalizar upload
-  return await finishVideoUpload(adAccountId, session.video_id, file.name, accessToken);
+  return await finishVideoUpload(adAccountId, session.video_id, displayName, accessToken);
 }
 
 // =====================================================
@@ -386,6 +671,27 @@ async function waitForVideoReady(
 }
 
 // =====================================================
+// HELPER: Obter Page Access Token
+// =====================================================
+// O Page Access Token é necessário para criar AdCreatives
+// quando o app está em modo de desenvolvimento
+// Isso evita o erro 1885183
+
+function getPageAccessToken(): string {
+  // Primeiro tenta o Page Access Token específico
+  const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
+  if (pageToken) {
+    console.log('🔑 Usando META_PAGE_ACCESS_TOKEN para criação de AdCreative');
+    return pageToken;
+  }
+  
+  // Fallback para o token principal
+  const mainToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN || '';
+  console.log('🔑 Usando token principal (fallback)');
+  return mainToken;
+}
+
+// =====================================================
 // HELPER: Criar AdCreative com Vídeo
 // =====================================================
 
@@ -399,26 +705,48 @@ async function createVideoAdCreative(
     headline: string;
     linkUrl: string;
     ctaType?: string;
+    imageHash?: string; // ✅ Thumbnail opcional
   },
   accessToken: string
 ): Promise<string> {
   const url = `${META_BASE_URL}/act_${adAccountId}/adcreatives`;
 
-  const objectStorySpec = {
-    page_id: config.pageId,
-    video_data: {
-      video_id: config.videoId,
-      message: config.primaryText,
-      title: config.headline,
-      call_to_action: {
-        type: config.ctaType || 'LEARN_MORE',
-        value: { link: config.linkUrl },
-      },
+  // ✅ Usar Page Access Token para evitar erro de Development Mode
+  const creativeAccessToken = getPageAccessToken();
+
+  // ✅ Construir video_data com thumbnail se disponível
+  const videoData: Record<string, unknown> = {
+    video_id: config.videoId,
+    message: config.primaryText,
+    title: config.headline,
+    link_description: config.headline,
+    call_to_action: {
+      type: config.ctaType || 'LEARN_MORE',
+      value: { link: config.linkUrl },
     },
   };
+  
+  // ✅ Adicionar thumbnail se disponível
+  if (config.imageHash) {
+    videoData.image_hash = config.imageHash;
+    console.log('   🖼️ Usando thumbnail customizada (image_hash)');
+  }
+  
+  const objectStorySpec = {
+    page_id: config.pageId,
+    video_data: videoData,
+  };
+  
+  console.log('🎨 Criando Video AdCreative...');
+  console.log('   URL:', url);
+  console.log('   Page ID:', config.pageId);
+  console.log('   Video ID:', config.videoId);
+  console.log('   CTA Type:', config.ctaType);
+  console.log('   Image Hash:', config.imageHash || 'não especificado');
+  console.log('   Token Type:', process.env.META_PAGE_ACCESS_TOKEN ? 'Page Token' : 'User Token');
 
   const params = new URLSearchParams({
-    access_token: accessToken,
+    access_token: creativeAccessToken,
     name: config.name,
     object_story_spec: JSON.stringify(objectStorySpec),
   });
@@ -430,8 +758,16 @@ async function createVideoAdCreative(
   });
 
   const data = await response.json();
+  
   if (data.error) {
-    throw new Error(`Erro ao criar ad creative de vídeo: ${data.error.message}`);
+    console.error('❌ Erro da API Meta ao criar AdCreative:');
+    console.error('   Código:', data.error.code);
+    console.error('   Subcode:', data.error.error_subcode);
+    console.error('   Mensagem:', data.error.message);
+    console.error('   User Message:', data.error.error_user_msg);
+    console.error('   Tipo:', data.error.type);
+    console.error('   Erro completo:', JSON.stringify(data.error, null, 2));
+    throw new Error(`Erro ao criar ad creative de vídeo: ${data.error.error_user_msg || data.error.message}`);
   }
 
   console.log('✅ Video AdCreative criado:', data.id);
@@ -573,11 +909,26 @@ export async function POST(request: NextRequest) {
     const objective = formData.get('objective') as string;
     const dailyBudgetStr = formData.get('dailyBudget') as string;
     const targetAudience = formData.get('targetAudience') as string || 'Médicos';
-    const funnelStage = (formData.get('funnel_stage') as FunnelStage) || 'TOPO';
+    const funnelStage = (formData.get('funnel_stage') as FunnelStageType) || 'TOPO';
     const statusRaw = formData.get('status') as string || 'PAUSED';
     const status = statusRaw === 'ACTIVE' ? 'ACTIVE' : 'PAUSED';
     const linkUrl = formData.get('linkUrl') as string || process.env.NEXT_PUBLIC_SITE_URL || 'https://gravador-medico.com.br';
     const manualCopy = formData.get('copy') as string | null;
+    
+    // ✅ NOVO: Extrair objective_type do frontend (TRAFEGO, CONVERSAO, REMARKETING, LEADS)
+    const objectiveTypeRaw = formData.get('objective_type') as string || 'TRAFEGO';
+    const objectiveType = objectiveTypeRaw.toUpperCase() as ObjectiveType;
+    
+    // ✅ NOVO: Obter estratégia inteligente baseada em funil + objetivo
+    console.log(`\n🧠 ====== ESTRATÉGIA INTELIGENTE ======`);
+    console.log(`   Funil: ${funnelStage} | Objetivo: ${objectiveType}`);
+    console.log(`   Descrição: ${getStrategyDescription(funnelStage, objectiveType)}`);
+    
+    const funnelStrategy = getFunnelStrategy(funnelStage, objectiveType, metaConfig.pixelId || '');
+    
+    // ✅ NOVO: CTA dinâmico baseado na estratégia
+    const recommendedCTA = funnelStrategy.recommended_cta;
+    console.log(`🎯 CTA recomendado: ${recommendedCTA}`);
 
     // Novos parâmetros de Targeting (2025)
     const useAdvantagePlus = formData.get('use_advantage_plus') === 'true';
@@ -1046,39 +1397,115 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Bid Strategy padrão
-    const bidStrategyRaw = formData.get('bid_strategy') as string || 'LOWEST_COST_WITHOUT_CAP';
-    const bidStrategy = bidStrategyRaw as 'LOWEST_COST_WITHOUT_CAP' | 'LOWEST_COST_WITH_BID_CAP' | 'COST_CAP';
-    console.log(`   🔧 Smart Default: Bid Strategy = ${bidStrategy}`);
-
     // =====================================================
-    // ETAPA 5: Criar AdSet (com ROLLBACK automático)
+    // ETAPA 5: Criar AdSet (com ESTRATÉGIA DE FUNIL)
     // =====================================================
 
-    console.log('📋 Etapa 5: Criando AdSet...');
-    // adSetName já foi gerado na Etapa 3 com a Taxonomia de Nomenclatura
-    const dailyBudgetCents = Math.round(dailyBudget * 100);
-
-    // ✅ Determinar custom_event_type baseado no funil
-    const customEventType = getCustomEventType(funnelStage, objective);
-    console.log(`🎯 Custom Event Type: ${customEventType} (funil: ${funnelStage}, objetivo: ${objective})`);
+    console.log('\n📋 Etapa 5: Criando AdSet com ESTRATÉGIA INTELIGENTE...');
+    console.log(`🧠 Estratégia: ${funnelStage} + ${objectiveType}`);
+    console.log(`   Descrição: ${funnelStrategy.description}`);
+    
+    // ✅ NOVO: Calcular orçamento ajustado pela estratégia
+    const budgetResult = calculateAdjustedBudget(dailyBudget, funnelStrategy);
+    const adjustedBudgetCents = Math.round(budgetResult.adjusted * 100);
+    console.log(`💰 Orçamento: R$${dailyBudget} → R$${budgetResult.adjusted} (${budgetResult.reason})`);
+    
+    // ✅ NOVO: Buscar IDs de audiências personalizadas do banco
+    let audienceIds: AudienceIds = {};
+    try {
+      const { data: audiences } = await supabaseAdmin
+        .from('custom_audiences')
+        .select('meta_audience_id, audience_type')
+        .eq('is_active', true);
+      
+      if (audiences && audiences.length > 0) {
+        audienceIds = {
+          engagers30d: audiences.find(a => a.audience_type === 'ENGAGEMENT')?.meta_audience_id,
+          visitors90d: audiences.find(a => a.audience_type === 'WEBSITE_VISITORS')?.meta_audience_id,
+          addToCart: audiences.find(a => a.audience_type === 'ADD_TO_CART')?.meta_audience_id,
+          buyers: audiences.filter(a => a.audience_type === 'PURCHASERS').map(a => a.meta_audience_id)
+        };
+        console.log(`📊 Audiências encontradas:`, {
+          engagers: !!audienceIds.engagers30d,
+          visitors: !!audienceIds.visitors90d,
+          addToCart: !!audienceIds.addToCart,
+          buyers: audienceIds.buyers?.length || 0
+        });
+      }
+    } catch (e) {
+      console.log('   ⚠️ Não foi possível buscar audiências personalizadas');
+    }
+    
+    // ✅ NOVO: Construir targeting baseado na estratégia de funil
+    const strategyTargeting = buildStrategyTargeting(funnelStrategy, audienceIds, location);
+    
+    // Mesclar targeting da estratégia com exclusões já configuradas
+    const strategyExcluded = (strategyTargeting.excluded_custom_audiences as { id: string }[]) || [];
+    const existingExcluded = (finalTargeting.excluded_custom_audiences as { id: string }[]) || [];
+    const allExcluded = [...strategyExcluded, ...existingExcluded];
+    
+    const mergedTargeting: Record<string, unknown> = {
+      ...strategyTargeting,
+    };
+    
+    if (allExcluded.length > 0) {
+      mergedTargeting.excluded_custom_audiences = allExcluded;
+    }
+    
+    console.log(`🎯 Targeting aplicado:`, {
+      age_min: mergedTargeting.age_min,
+      age_max: mergedTargeting.age_max,
+      custom_audiences: (mergedTargeting.custom_audiences as any[])?.length || 0,
+      excluded_audiences: (mergedTargeting.excluded_custom_audiences as any[])?.length || 0,
+      has_interests: !!(mergedTargeting.flexible_spec as any[])?.length
+    });
 
     let adSetId: string;
     
     try {
-      adSetId = await createAdSet(metaConfig.adAccountId, {
+      const adSetParams: Parameters<typeof createAdSet>[1] = {
         name: adSetName,
         campaign_id: campaignId,
-        daily_budget: dailyBudgetCents,
-        billing_event: 'IMPRESSIONS',
-        optimization_goal: 'OFFSITE_CONVERSIONS',
-        targeting: finalTargeting as unknown as Parameters<typeof createAdSet>[1]['targeting'],
+        daily_budget: adjustedBudgetCents, // ✅ Orçamento ajustado pela estratégia
+        billing_event: funnelStrategy.billing_event as any,
+        optimization_goal: funnelStrategy.optimization_goal as any,
+        targeting: mergedTargeting as unknown as Parameters<typeof createAdSet>[1]['targeting'],
         status: status,
-        bid_strategy: bidStrategy,
-        // ✅ ADICIONAR pixelId e customEventType para promoted_object
-        pixel_id: metaConfig.pixelId,
-        custom_event_type: customEventType,
-      });
+        bid_strategy: funnelStrategy.bid_strategy as any,
+      };
+      
+      // ✅ Adicionar bid_amount se a estratégia definir (COST_CAP)
+      if (funnelStrategy.bid_amount) {
+        (adSetParams as any).bid_amount = funnelStrategy.bid_amount;
+        console.log(`   💵 Bid Amount: R$${(funnelStrategy.bid_amount / 100).toFixed(2)} por conversão`);
+      }
+      
+      // ✅ Adicionar promoted_object para CONVERSAO/LEADS
+      if (funnelStrategy.promoted_object) {
+        adSetParams.pixel_id = funnelStrategy.promoted_object.pixel_id;
+        adSetParams.custom_event_type = funnelStrategy.promoted_object.custom_event_type as any;
+        console.log(`   📊 Pixel + Evento: ${funnelStrategy.promoted_object.pixel_id} / ${funnelStrategy.promoted_object.custom_event_type}`);
+      } else {
+        console.log(`   🔗 Sem pixel (objetivo: ${funnelStrategy.optimization_goal})`);
+      }
+
+      // ✅ Adicionar attribution_spec se disponível
+      if (funnelStrategy.attribution_spec) {
+        (adSetParams as any).attribution_spec = funnelStrategy.attribution_spec;
+        console.log(`   📈 Attribution Spec configurado`);
+      }
+      
+      console.log('\n📋 AdSet Payload Final:', JSON.stringify({
+        name: adSetParams.name,
+        optimization_goal: adSetParams.optimization_goal,
+        billing_event: adSetParams.billing_event,
+        bid_strategy: adSetParams.bid_strategy,
+        daily_budget: `R$${(adjustedBudgetCents / 100).toFixed(2)}`,
+        has_promoted_object: !!funnelStrategy.promoted_object,
+        has_attribution: !!funnelStrategy.attribution_spec
+      }, null, 2));
+      
+      adSetId = await createAdSet(metaConfig.adAccountId, adSetParams);
     } catch (adSetError) {
       // 🔴 ROLLBACK: Se AdSet falhar, deletar a campanha criada
       console.error('❌ Erro ao criar AdSet. Iniciando ROLLBACK...');
@@ -1102,18 +1529,8 @@ export async function POST(request: NextRequest) {
       throw new Error(`Falha ao criar AdSet (campanha revertida): ${errorMessage}`);
     }
 
-    await logCampaignCreation({
-      meta_campaign_id: campaignId,
-      meta_adset_id: adSetId,
-      name: campaignName,
-      strategy: funnelStage,
-      objective,
-      budget_daily: dailyBudget,
-      status,
-      custom_audiences: includeAudiences,
-      excluded_audiences: excludeAudiences,
-      targeting: finalTargeting,
-    });
+    // ✅ REMOVIDO: logCampaignCreation movido para DEPOIS de criar ads
+    // Agora só salvamos campanhas que concluíram com sucesso
 
     // =====================================================
     // ETAPA 6: Processar Vídeos e Imagens
@@ -1122,9 +1539,9 @@ export async function POST(request: NextRequest) {
     const adIds: string[] = [];
     const creativeIds: string[] = [];
 
-    // 6A: Processar vídeos - PIPELINE ASSÍNCRONO COM ANÁLISE MULTIMODAL
+    // 6A: Processar vídeos - UPLOAD PARA META + CRIAR AD CREATIVE + AD
     if (uploadedVideos.length > 0) {
-      console.log('📹 Etapa 6A: Analisando e registrando vídeos...');
+      console.log('📹 Etapa 6A: Processando vídeos (upload + criação de anúncios)...');
 
       for (let i = 0; i < uploadedVideos.length; i++) {
         const { url, file } = uploadedVideos[i];
@@ -1146,7 +1563,7 @@ export async function POST(request: NextRequest) {
           const videoCreativeName = videoAdNames.adName;
           console.log(`   📛 Nome do vídeo: ${videoCreativeName}`);
 
-          // 🔥 NOVO: Análise multimodal do vídeo se não tiver copy manual
+          // 🔥 Análise multimodal do vídeo se não tiver copy manual
           if (!manualCopy && useVisionAnalysis) {
             console.log(`   🎬 Analisando vídeo ${i + 1} com Vision + Whisper...`);
             
@@ -1156,15 +1573,13 @@ export async function POST(request: NextRequest) {
                 mediaType: 'video',
                 objective,
                 targetAudience,
-                thumbnailUrl: url, // Usar frame do vídeo como thumbnail
+                thumbnailUrl: url,
                 audioBuffer: videoData?.audioBuffer,
               });
               
-              // Usar a primeira copy gerada
               primaryText = videoCopy.primaryText[0] || primaryText;
               headline = videoCopy.headlines[0] || headline;
               
-              // Salvar metadata da análise
               analysisMetadata = {
                 analysisType: videoCopy.metadata?.analysisType,
                 imageDescription: videoCopy.metadata?.imageDescription,
@@ -1179,7 +1594,95 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Salvar no banco com status 'pending' para o cron processar
+          // =====================================================
+          // 🔥 NOVO: Upload do vídeo para a Meta + Criar Ad
+          // =====================================================
+          
+          console.log(`   📤 Fazendo upload do vídeo ${i + 1} para a Meta...`);
+          
+          // 🔥 CORREÇÃO: Se o arquivo está vazio (veio de creative_url), baixar do Supabase primeiro
+          let videoBuffer: Buffer | null = null;
+          let metaVideoId: string;
+          
+          if (file.size === 0) {
+            console.log(`   ⬇️ Arquivo vazio detectado, baixando do Supabase: ${url}`);
+            videoBuffer = await downloadVideoFromUrl(url);
+            metaVideoId = await uploadVideoToMeta(videoBuffer, metaConfig.adAccountId, metaConfig.accessToken, file.name || 'video.mp4');
+          } else {
+            // Arquivo real com conteúdo - converter para Buffer
+            const arrayBuffer = await file.arrayBuffer();
+            videoBuffer = Buffer.from(arrayBuffer);
+            metaVideoId = await uploadVideoToMeta(videoBuffer, metaConfig.adAccountId, metaConfig.accessToken, file.name);
+          }
+          console.log(`   ✅ Vídeo uploaded. Meta Video ID: ${metaVideoId}`);
+          
+          // 2. Aguardar vídeo ficar pronto
+          console.log(`   ⏳ Aguardando vídeo ficar pronto (timeout: 30s)...`);
+          const videoReady = await waitForVideoReady(metaVideoId, metaConfig.accessToken, 30000); // 30s timeout
+          if (!videoReady) {
+            console.warn(`   ⚠️ Timeout aguardando vídeo ${i + 1}, mas continuando...`);
+          } else {
+            console.log(`   ✅ Vídeo está pronto para uso`);
+          }
+          
+          // ✅ 2.5 NOVO: Extrair thumbnail e fazer upload
+          let thumbnailHash: string | undefined;
+          if (videoBuffer) {
+            try {
+              console.log(`   🖼️ Extraindo thumbnail do vídeo...`);
+              const thumbnailBuffer = await extractThumbnailFromVideo(videoBuffer);
+              thumbnailHash = await uploadThumbnailToMeta(thumbnailBuffer, metaConfig.adAccountId, metaConfig.accessToken);
+              console.log(`   ✅ Thumbnail pronta. Hash: ${thumbnailHash}`);
+            } catch (thumbError) {
+              console.warn(`   ⚠️ Erro ao extrair thumbnail, continuando sem:`, thumbError);
+              // Continuar sem thumbnail - Meta pode rejeitar ou aceitar
+            }
+          }
+          
+          // 3. Criar AdCreative com o vídeo
+          console.log(`   🎨 Criando AdCreative para vídeo ${i + 1}...`);
+          console.log(`   📝 Parâmetros do AdCreative:`, JSON.stringify({
+            name: videoCreativeName,
+            pageId: metaConfig.pageId,
+            videoId: metaVideoId,
+            primaryText: primaryText.substring(0, 50) + '...',
+            headline: headline.substring(0, 30) + '...',
+            linkUrl: linkUrl,
+            ctaType: recommendedCTA,
+            imageHash: thumbnailHash || 'não especificado',
+          }, null, 2));
+          
+          const videoCreativeId = await createVideoAdCreative(
+            metaConfig.adAccountId,
+            {
+              name: videoCreativeName,
+              pageId: metaConfig.pageId,
+              videoId: metaVideoId,
+              primaryText: primaryText,
+              headline: headline,
+              linkUrl: linkUrl, // ✅ URL do site obrigatória
+              ctaType: recommendedCTA, // ✅ CTA dinâmico baseado no objetivo
+              imageHash: thumbnailHash, // ✅ Thumbnail extraída
+            },
+            metaConfig.accessToken
+          );
+          creativeIds.push(videoCreativeId);
+          console.log(`   ✅ AdCreative criado com sucesso: ${videoCreativeId}`);
+          
+          // 4. Criar Ad vinculado ao AdSet
+          console.log(`   📢 Criando Ad para vídeo ${i + 1}...`);
+          const videoAdId = await createAd(metaConfig.adAccountId, {
+            name: videoCreativeName,
+            adSetId: adSetId,
+            creativeId: videoCreativeId,
+            status,
+            campaignName: campaignName,
+            adSetName: adSetName,
+          });
+          adIds.push(videoAdId);
+          console.log(`   ✅ Ad criado: ${videoAdId}`);
+
+          // 5. Salvar no banco para histórico
           const { data: creative, error: insertError } = await supabaseAdmin
             .from('ads_creatives')
             .insert({
@@ -1187,26 +1690,33 @@ export async function POST(request: NextRequest) {
               creative_type: 'VIDEO',
               file_url: url,
               file_name: file.name,
-              generated_name: videoCreativeName, // 🔥 Nome padronizado
+              generated_name: videoCreativeName,
               primary_text: primaryText,
               headline,
-              processing_status: 'pending',
+              processing_status: 'completed', // ✅ Já processado
+              meta_video_id: metaVideoId,
+              meta_creative_id: videoCreativeId,
+              meta_ad_id: videoAdId,
               meta_errors: [],
-              // Salvar análise como JSON para referência
               analysis_metadata: Object.keys(analysisMetadata).length > 0 ? analysisMetadata : null,
             })
             .select('id')
             .single();
 
           if (insertError) {
-            console.error(`❌ Erro ao salvar vídeo ${i + 1}:`, insertError);
-            continue;
+            console.error(`   ⚠️ Erro ao salvar no banco (ad já criado):`, insertError.message);
           }
 
-          creativeIds.push(creative.id);
-          console.log(`✅ Vídeo ${i + 1} enfileirado para processamento (ID: ${creative.id})`);
+          console.log(`✅ Vídeo ${i + 1} processado com sucesso! Ad ID: ${videoAdId}`);
         } catch (error) {
-          console.error(`❌ Erro ao enfileirar vídeo ${i + 1}:`, error);
+          console.error(`❌ Erro ao processar vídeo ${i + 1}:`);
+          if (error instanceof Error) {
+            console.error(`   📛 Mensagem: ${error.message}`);
+            console.error(`   📛 Stack: ${error.stack}`);
+          } else {
+            console.error(`   📛 Erro completo:`, error);
+          }
+          // Não re-lançar o erro para continuar com outros vídeos
         }
       }
     }
@@ -1285,11 +1795,10 @@ export async function POST(request: NextRequest) {
     const hasImages = uploadedImages.length > 0;
     const hasVideos = uploadedVideos.length > 0;
     
-    // Para campanhas de IMAGEM: deve ter pelo menos 1 Ad criado
-    // Para campanhas de VÍDEO: aceita 0 Ads (serão criados pelo cron após encoding)
-    if (hasImages && !hasVideos && adIds.length === 0) {
-      // 🔴 FALHA CRÍTICA: Campanha de imagem sem nenhum anúncio criado
-      console.error('❌ FALHA CRÍTICA: Nenhum anúncio de imagem foi criado!');
+    // ✅ CORRIGIDO: Agora verifica se QUALQUER Ad foi criado (imagem OU vídeo)
+    if ((hasImages || hasVideos) && adIds.length === 0) {
+      // 🔴 FALHA CRÍTICA: Nenhum anúncio criado
+      console.error('❌ FALHA CRÍTICA: Nenhum anúncio foi criado!');
       
       // Rollback: deletar campanha órfã
       console.log(`🗑️ ROLLBACK: Deletando campanha órfã ${campaignId}...`);
@@ -1298,16 +1807,10 @@ export async function POST(request: NextRequest) {
       
       return NextResponse.json({
         success: false,
-        error: 'Nenhum anúncio foi criado. Verifique os criativos enviados.',
+        error: 'Nenhum anúncio foi criado. Verifique os criativos enviados e tente novamente.',
         rollbackExecuted: rollbackSuccess,
         campaignId: rollbackSuccess ? null : campaignId,
       }, { status: 400 });
-    }
-    
-    // Para campanhas MISTAS (imagem + vídeo): deve ter pelo menos 1 Ad de imagem
-    if (hasImages && hasVideos && adIds.length === 0) {
-      console.warn('⚠️ Campanha mista sem anúncios de imagem - vídeos em processamento');
-      // Não faz rollback pois vídeos serão processados
     }
 
     // =====================================================
@@ -1315,6 +1818,21 @@ export async function POST(request: NextRequest) {
     // =====================================================
 
     console.log('🎉 Campanha criada com sucesso!');
+    
+    // ✅ NOVO: Só salvar no banco APÓS confirmar que pelo menos 1 ad foi criado
+    console.log('💾 Salvando campanha no banco (campanha válida com ads)...');
+    await logCampaignCreation({
+      meta_campaign_id: campaignId,
+      meta_adset_id: adSetId,
+      name: campaignName,
+      strategy: funnelStage,
+      objective,
+      budget_daily: dailyBudget,
+      status,
+      custom_audiences: includeAudiences,
+      excluded_audiences: excludeAudiences,
+      targeting: finalTargeting,
+    });
     
     // ✅ Mensagens corrigidas: campanha aparece IMEDIATAMENTE no Meta Ads
     let message = '';
@@ -1390,9 +1908,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
+    // ✅ CORRIGIDO: Buscar campanhas sem JOIN (foreign key removida)
     const { data: campaigns, error } = await supabaseAdmin
       .from('ads_campaigns')
-      .select('*, ads_creatives (*)')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -1400,7 +1919,23 @@ export async function GET() {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, campaigns });
+    // Buscar criativos separadamente se necessário
+    const campaignsWithCreatives = await Promise.all(
+      (campaigns || []).map(async (campaign) => {
+        const { data: creatives } = await supabaseAdmin
+          .from('ads_creatives')
+          .select('*')
+          .eq('campaign_id', campaign.meta_campaign_id)
+          .limit(10);
+        
+        return {
+          ...campaign,
+          ads_creatives: creatives || []
+        };
+      })
+    );
+
+    return NextResponse.json({ success: true, campaigns: campaignsWithCreatives });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Erro ao buscar campanhas' }, { status: 500 });
   }

@@ -300,7 +300,8 @@ export default function AdsLauncherPro() {
   
   // Fase 2
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [creativeUrl, setCreativeUrl] = useState('');
+  const [creativeUrl, setCreativeUrl] = useState(''); // URL no Supabase (para API)
+  const [localPreviewUrl, setLocalPreviewUrl] = useState(''); // ✅ Blob URL local (para preview)
   const [isVideoCreative, setIsVideoCreative] = useState(false); // ✅ Rastrear tipo do criativo
   const [analysis, setAnalysis] = useState<CreativeAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -431,10 +432,14 @@ export default function AdsLauncherPro() {
     const isVideo = file.type.startsWith('video/');
     setIsVideoCreative(isVideo); // ✅ Rastrear tipo do criativo
 
+    // ✅ Criar blob URL local para preview (sempre funciona)
+    const blobUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(blobUrl);
+
     const uploadedFile: UploadedFile = {
       id: Date.now().toString(),
       file,
-      preview: URL.createObjectURL(file),
+      preview: blobUrl,
       type: isVideo ? 'video' : 'image',
     };
     setFiles([uploadedFile]);
@@ -825,6 +830,11 @@ export default function AdsLauncherPro() {
 
   // Reset
   const resetForm = () => {
+    // ✅ Revogar blob URL anterior para evitar memory leak
+    if (localPreviewUrl) {
+      URL.revokeObjectURL(localPreviewUrl);
+    }
+    
     setPhases([
       { id: 1, name: 'Formato', description: 'Tipo de anúncio', isCompleted: false, isActive: true, isLocked: false },
       { id: 2, name: 'Criativo', description: 'Upload + Análise IA', isCompleted: false, isActive: false, isLocked: true },
@@ -835,6 +845,7 @@ export default function AdsLauncherPro() {
     setFormat(null);
     setFiles([]);
     setCreativeUrl('');
+    setLocalPreviewUrl(''); // ✅ Resetar preview local
     setIsVideoCreative(false); // ✅ Resetar tipo do criativo
     setAnalysis(null);
     setObjectiveType('TRAFEGO');
@@ -1974,27 +1985,24 @@ export default function AdsLauncherPro() {
                         <div className="p-3 text-sm text-gray-900 leading-relaxed whitespace-pre-line">
                           {copies.variations.find(v => v.id === selectedVariation)?.primary_text}
                         </div>
-                        {/* ✅ Creative: Usar creativeUrl (Supabase) para vídeo e imagem */}
-                        {(files[0] || creativeUrl) && (
+                        {/* ✅ Creative: Usar localPreviewUrl (blob local) para preview que funciona */}
+                        {(files[0] || localPreviewUrl) && (
                           (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0]?.preview} 
+                              key={localPreviewUrl || files[0]?.preview}
+                              src={localPreviewUrl || files[0]?.preview} 
                               className="w-full aspect-square object-cover bg-black" 
                               controls 
                               playsInline
-                              preload="auto"
-                              muted
-                              onLoadedData={(e) => {
-                                const video = e.currentTarget;
-                                video.muted = false;
-                              }}
+                              preload="metadata"
+                              onError={(e) => console.error('❌ Erro ao carregar vídeo FEED:', e)}
                             >
-                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                              <source src={localPreviewUrl || files[0]?.preview} type="video/mp4" />
                               Seu navegador não suporta vídeo.
                             </video> :
-                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full aspect-square object-cover" />
+                            <img src={localPreviewUrl || files[0]?.preview} alt="Criativo" className="w-full aspect-square object-cover" />
                         )}
-                        {!files[0] && !creativeUrl && (
+                        {!files[0] && !localPreviewUrl && (
                           <div className="w-full aspect-square bg-gray-800 flex items-center justify-center">
                             <span className="text-gray-500">Nenhum criativo</span>
                           </div>
@@ -2016,24 +2024,26 @@ export default function AdsLauncherPro() {
                     {/* STORIES Preview */}
                     {previewFormat === 'STORIES' && (
                       <div className="bg-black rounded-3xl overflow-hidden shadow-2xl relative" style={{ aspectRatio: '9/16' }}>
-                        {/* ✅ Creative Full Screen - Usar creativeUrl (Supabase) */}
-                        {(files[0] || creativeUrl) && (
+                        {/* ✅ Creative Full Screen - Usar localPreviewUrl (blob local) */}
+                        {(files[0] || localPreviewUrl) && (
                           (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0]?.preview} 
+                              key={`stories-${localPreviewUrl || files[0]?.preview}`}
+                              src={localPreviewUrl || files[0]?.preview} 
                               className="w-full h-full object-cover" 
                               autoPlay 
                               muted 
                               loop 
                               playsInline
                               controls
-                              preload="auto"
+                              preload="metadata"
+                              onError={(e) => console.error('❌ Erro ao carregar vídeo STORIES:', e)}
                             >
-                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                              <source src={localPreviewUrl || files[0]?.preview} type="video/mp4" />
                             </video> :
-                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
+                            <img src={localPreviewUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
                         )}
-                        {!files[0] && !creativeUrl && (
+                        {!files[0] && !localPreviewUrl && (
                           <div className="w-full h-full bg-gray-900 flex items-center justify-center">
                             <span className="text-gray-500">Nenhum criativo</span>
                           </div>
@@ -2067,24 +2077,26 @@ export default function AdsLauncherPro() {
                     {/* REELS Preview */}
                     {previewFormat === 'REELS' && (
                       <div className="bg-black rounded-3xl overflow-hidden shadow-2xl relative" style={{ aspectRatio: '9/16' }}>
-                        {/* ✅ Creative Full Screen - Usar creativeUrl (Supabase) */}
-                        {(files[0] || creativeUrl) && (
+                        {/* ✅ Creative Full Screen - Usar localPreviewUrl (blob local) */}
+                        {(files[0] || localPreviewUrl) && (
                           (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0]?.preview} 
+                              key={`reels-${localPreviewUrl || files[0]?.preview}`}
+                              src={localPreviewUrl || files[0]?.preview} 
                               className="w-full h-full object-cover" 
                               autoPlay 
                               muted 
                               loop 
                               playsInline
                               controls
-                              preload="auto"
+                              preload="metadata"
+                              onError={(e) => console.error('❌ Erro ao carregar vídeo REELS:', e)}
                             >
-                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                              <source src={localPreviewUrl || files[0]?.preview} type="video/mp4" />
                             </video> :
-                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
+                            <img src={localPreviewUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
                         )}
-                        {!files[0] && !creativeUrl && (
+                        {!files[0] && !localPreviewUrl && (
                           <div className="w-full h-full bg-gray-900 flex items-center justify-center">
                             <span className="text-gray-500">Nenhum criativo</span>
                           </div>

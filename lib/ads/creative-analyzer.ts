@@ -308,7 +308,7 @@ FORMATO (JSON):
 Responda APENAS com o JSON.`;
 
   try {
-    // Construir conteúdo com frames ou fallback para URL
+    // Construir conteúdo com frames ou fallback para análise de texto
     const contentParts: any[] = [{ type: 'text', text: userPrompt }];
     
     if (frameBase64Images.length > 0) {
@@ -319,13 +319,17 @@ Responda APENAS com o JSON.`;
           image_url: { url: base64Image, detail: 'low' } // low para economizar tokens
         });
       }
-    } else {
-      // Fallback: tentar com URL do vídeo (pode falhar)
-      console.log('   ⚠️ Sem frames, tentando com URL (pode falhar)');
+    } else if (params.thumbnailUrl && !params.thumbnailUrl.endsWith('.mp4')) {
+      // ✅ CORRIGIDO: Só usar thumbnailUrl se for imagem (não MP4)
+      console.log('   ⚠️ Sem frames, usando thumbnail como imagem');
       contentParts.push({
         type: 'image_url',
-        image_url: { url: params.thumbnailUrl || videoUrl, detail: 'low' }
+        image_url: { url: params.thumbnailUrl, detail: 'low' }
       });
+    } else {
+      // ❌ Sem frames e sem thumbnail de imagem - análise apenas por texto
+      console.log('   ⚠️ Sem frames extraídos e sem thumbnail. Analisando apenas por transcrição.');
+      // Não adiciona imagem - GPT Vision não aceita MP4
     }
     
     const response = await openai.chat.completions.create({
