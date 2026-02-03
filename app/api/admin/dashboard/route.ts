@@ -81,11 +81,16 @@ export async function GET(request: NextRequest) {
       supabaseAdmin.from('sales').select('id, total_amount, order_status').gte('created_at', prevStartISO).lte('created_at', prevEndISO).is('deleted_at', null),
       supabaseAdmin.from('analytics_visits').select('session_id').gte('created_at', startISO).lte('created_at', endISO),
       supabaseAdmin.from('analytics_visits').select('session_id').gte('created_at', prevStartISO).lte('created_at', prevEndISO),
-      supabaseAdmin.from('sales').select('total_amount, created_at').gte('created_at', startISO).lte('created_at', endISO).is('deleted_at', null).in('order_status', ['approved', 'paid', 'authorized']),
+      supabaseAdmin.from('sales').select('total_amount, created_at').gte('created_at', startISO).lte('created_at', endISO).is('deleted_at', null).in('order_status', ['approved', 'paid', 'authorized', 'active']),
       supabaseAdmin.from('abandoned_carts').select('id, total_amount, status, created_at').gte('created_at', startISO).lte('created_at', endISO).is('deleted_at', null)
     ])
 
-    const approvedStatuses = ['approved', 'paid', 'authorized']
+    // Status que indicam venda APROVADA/PAGA
+    // - approved: Mercado Pago aprovado
+    // - paid: Venda paga genérico
+    // - authorized: Mercado Pago autorizado
+    // - active: Status ativo (Appmax ou assinatura ativa)
+    const approvedStatuses = ['approved', 'paid', 'authorized', 'active']
     const allSales = salesResult.data || []
     const approvedSales = allSales.filter(s => approvedStatuses.includes(s.order_status))
     const prevAllSales = prevSalesResult.data || []

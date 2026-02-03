@@ -193,12 +193,13 @@ interface DatabaseSales {
 async function getDatabaseSales(since: string, until: string): Promise<DatabaseSales> {
   try {
     // Buscar todas as vendas aprovadas no período
+    // Status que indicam venda PAGA: paid, approved, authorized, active
     const { data: allSales, error } = await supabaseAdmin
       .from('sales')
-      .select('id, total_amount, utm_source, utm_medium, utm_campaign, created_at')
+      .select('id, total_amount, utm_source, utm_medium, utm_campaign, created_at, order_status')
       .gte('created_at', `${since}T00:00:00`)
       .lte('created_at', `${until}T23:59:59.999`)
-      .in('status', ['paid', 'approved']);
+      .in('order_status', ['paid', 'approved', 'authorized', 'active']);
 
     if (error) {
       console.error('❌ [DB] Erro ao buscar vendas:', error);
