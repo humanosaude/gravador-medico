@@ -119,7 +119,8 @@ export async function GET() {
     url.searchParams.set('fields', [
       'id',
       'name',
-      'approximate_count',
+      'approximate_count_lower_bound',
+      'approximate_count_upper_bound',
       'subtype',
       'delivery_status',
       'time_created',
@@ -174,7 +175,7 @@ export async function GET() {
     const audiences: AudienceData[] = (data.data || []).map((aud: any) => ({
       id: aud.id,
       name: aud.name,
-      approximate_count: aud.approximate_count,
+      approximate_count: aud.approximate_count_lower_bound || aud.approximate_count_upper_bound || 0,
       subtype: aud.subtype,
       subtypeLabel: getAudienceTypeLabel(aud.subtype),
       delivery_status: aud.delivery_status ? {
@@ -190,7 +191,7 @@ export async function GET() {
       data_source: aud.data_source,
       lookalike_spec: aud.lookalike_spec,
       isLookalike: aud.subtype === 'LOOKALIKE',
-      isReady: aud.delivery_status?.code < 300 || aud.approximate_count > 1000,
+      isReady: aud.delivery_status?.code < 300 || (aud.approximate_count_lower_bound || 0) > 1000,
     }));
 
     // 5. Ordenar: Prontos primeiro, depois por data de criação
