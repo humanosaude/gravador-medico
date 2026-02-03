@@ -59,7 +59,7 @@ export default function EscalaAutomaticaPage() {
                   Copy com IA
                 </h3>
                 <p className="text-sm text-purple-300">
-                  GPT-4o gera textos otimizados para conversão
+                  GPT-5.2 gera textos otimizados para conversão
                 </p>
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function EscalaAutomaticaPage() {
               {
                 step: 2,
                 title: 'IA Gera Copys',
-                description: 'GPT-4o cria textos otimizados para conversão',
+                description: 'GPT-5.2 cria textos otimizados para conversão',
                 icon: <Brain className="w-6 h-6" />,
               },
               {

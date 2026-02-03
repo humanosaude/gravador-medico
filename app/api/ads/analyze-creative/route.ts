@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`📤 [Analyze Creative API] Upload concluído: ${publicUrl}`);
 
-    // Analisar com GPT-4o Vision
+    // Analisar com GPT-5.2 Vision
     const analysis = await analyzeCreative(publicUrl, format);
 
     console.log('✅ [Analyze Creative API] Análise concluída');

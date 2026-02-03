@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       // Gerar o meta-prompt completo usando a função helper
       const metaPrompt = generateMetaPrompt(objective_type);
 
-      // Chamar GPT-4o para gerar as variações de copy
+      // Chamar GPT-5.2 para gerar as variações de copy
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
