@@ -358,10 +358,6 @@ export default function AudiencesPage() {
       const systemAudiences = formattedAudiences.filter(a => a.name?.startsWith(SYSTEM_PREFIX));
       const systemCreated = systemAudiences.length;
       
-      // Debug log para verificar públicos [GDM]
-      console.log(`📊 [GDM] Públicos carregados: ${formattedAudiences.length} total, ${systemCreated} [GDM]`);
-      console.log('📋 Lista [GDM]:', systemAudiences.map(a => a.name));
-      
       setStats({
         total: formattedAudiences.length,
         custom: formattedAudiences.filter(a => a.audience_type === 'CUSTOM').length,
