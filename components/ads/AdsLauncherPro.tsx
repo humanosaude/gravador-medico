@@ -301,6 +301,7 @@ export default function AdsLauncherPro() {
   // Fase 2
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [creativeUrl, setCreativeUrl] = useState('');
+  const [isVideoCreative, setIsVideoCreative] = useState(false); // ✅ Rastrear tipo do criativo
   const [analysis, setAnalysis] = useState<CreativeAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -427,11 +428,14 @@ export default function AdsLauncherPro() {
   const handleFileUpload = async (file: File) => {
     if (!format) return;
 
+    const isVideo = file.type.startsWith('video/');
+    setIsVideoCreative(isVideo); // ✅ Rastrear tipo do criativo
+
     const uploadedFile: UploadedFile = {
       id: Date.now().toString(),
       file,
       preview: URL.createObjectURL(file),
-      type: file.type.startsWith('video/') ? 'video' : 'image',
+      type: isVideo ? 'video' : 'image',
     };
     setFiles([uploadedFile]);
     setIsAnalyzing(true);
@@ -831,6 +835,7 @@ export default function AdsLauncherPro() {
     setFormat(null);
     setFiles([]);
     setCreativeUrl('');
+    setIsVideoCreative(false); // ✅ Resetar tipo do criativo
     setAnalysis(null);
     setObjectiveType('TRAFEGO');
     setFunnelStage('TOPO');
@@ -1970,16 +1975,29 @@ export default function AdsLauncherPro() {
                           {copies.variations.find(v => v.id === selectedVariation)?.primary_text}
                         </div>
                         {/* ✅ Creative: Usar creativeUrl (Supabase) para vídeo e imagem */}
-                        {files[0] && (
-                          files[0].type === 'video' ? 
+                        {(files[0] || creativeUrl) && (
+                          (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0].preview} 
-                              className="w-full aspect-square object-cover" 
+                              src={creativeUrl || files[0]?.preview} 
+                              className="w-full aspect-square object-cover bg-black" 
                               controls 
                               playsInline
-                              preload="metadata"
-                            /> :
-                            <img src={creativeUrl || files[0].preview} alt="Criativo" className="w-full aspect-square object-cover" />
+                              preload="auto"
+                              muted
+                              onLoadedData={(e) => {
+                                const video = e.currentTarget;
+                                video.muted = false;
+                              }}
+                            >
+                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                              Seu navegador não suporta vídeo.
+                            </video> :
+                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full aspect-square object-cover" />
+                        )}
+                        {!files[0] && !creativeUrl && (
+                          <div className="w-full aspect-square bg-gray-800 flex items-center justify-center">
+                            <span className="text-gray-500">Nenhum criativo</span>
+                          </div>
                         )}
                         <div className="p-3 bg-gray-50 border-t border-gray-200">
                           <div className="text-xs text-gray-500 uppercase">gravadormedico.com.br</div>
@@ -1999,17 +2017,26 @@ export default function AdsLauncherPro() {
                     {previewFormat === 'STORIES' && (
                       <div className="bg-black rounded-3xl overflow-hidden shadow-2xl relative" style={{ aspectRatio: '9/16' }}>
                         {/* ✅ Creative Full Screen - Usar creativeUrl (Supabase) */}
-                        {files[0] && (
-                          files[0].type === 'video' ? 
+                        {(files[0] || creativeUrl) && (
+                          (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0].preview} 
+                              src={creativeUrl || files[0]?.preview} 
                               className="w-full h-full object-cover" 
                               autoPlay 
                               muted 
                               loop 
                               playsInline
-                            /> :
-                            <img src={creativeUrl || files[0].preview} alt="Criativo" className="w-full h-full object-cover" />
+                              controls
+                              preload="auto"
+                            >
+                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                            </video> :
+                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
+                        )}
+                        {!files[0] && !creativeUrl && (
+                          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                            <span className="text-gray-500">Nenhum criativo</span>
+                          </div>
                         )}
                         {/* Gradient Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70"></div>
@@ -2041,17 +2068,26 @@ export default function AdsLauncherPro() {
                     {previewFormat === 'REELS' && (
                       <div className="bg-black rounded-3xl overflow-hidden shadow-2xl relative" style={{ aspectRatio: '9/16' }}>
                         {/* ✅ Creative Full Screen - Usar creativeUrl (Supabase) */}
-                        {files[0] && (
-                          files[0].type === 'video' ? 
+                        {(files[0] || creativeUrl) && (
+                          (isVideoCreative || files[0]?.type === 'video') ? 
                             <video 
-                              src={creativeUrl || files[0].preview} 
+                              src={creativeUrl || files[0]?.preview} 
                               className="w-full h-full object-cover" 
                               autoPlay 
                               muted 
                               loop 
                               playsInline
-                            /> :
-                            <img src={creativeUrl || files[0].preview} alt="Criativo" className="w-full h-full object-cover" />
+                              controls
+                              preload="auto"
+                            >
+                              <source src={creativeUrl || files[0]?.preview} type="video/mp4" />
+                            </video> :
+                            <img src={creativeUrl || files[0]?.preview} alt="Criativo" className="w-full h-full object-cover" />
+                        )}
+                        {!files[0] && !creativeUrl && (
+                          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+                            <span className="text-gray-500">Nenhum criativo</span>
+                          </div>
                         )}
                         {/* Gradient Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80"></div>
