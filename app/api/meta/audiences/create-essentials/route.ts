@@ -38,11 +38,17 @@ interface MetaCredentials {
 
 async function getMetaCredentials(): Promise<MetaCredentials> {
   // Buscar configurações do banco
-  const { data: settings } = await supabaseAdmin
+  const { data: settings, error } = await supabaseAdmin
     .from('integration_settings')
     .select('meta_ad_account_id, meta_pixel_id, meta_page_id, meta_instagram_id')
     .eq('is_default', true)
+    .eq('setting_key', 'meta_default')
+    .limit(1)
     .single();
+
+  if (error) {
+    console.log('⚠️ Nenhuma configuração Meta no banco:', error.message);
+  }
 
   const adAccountId = settings?.meta_ad_account_id || process.env.META_AD_ACCOUNT_ID;
   const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
@@ -50,8 +56,17 @@ async function getMetaCredentials(): Promise<MetaCredentials> {
   const pageId = settings?.meta_page_id || process.env.META_PAGE_ID;
   const igAccountId = settings?.meta_instagram_id || process.env.META_INSTAGRAM_ID;
 
+  console.log('🔑 [getMetaCredentials] Credenciais carregadas:', {
+    adAccountId,
+    pixelId,
+    pageId,
+    igAccountId,
+    hasToken: !!accessToken,
+    source: settings ? 'banco de dados' : 'variáveis de ambiente'
+  });
+
   if (!adAccountId || !accessToken) {
-    throw new Error('Credenciais Meta não configuradas');
+    throw new Error('Credenciais Meta não configuradas. Configure em /admin/ai/settings');
   }
 
   return { adAccountId, accessToken, pixelId, pageId, igAccountId };
@@ -102,8 +117,27 @@ async function createCustomAudience(
 
   const data = await response.json();
 
+  console.log('📡 [Meta API Response] createCustomAudience:', {
+    status: response.status,
+    ok: response.ok,
+    template: template.id,
+    name: standardizedName,
+    hasError: !!data.error,
+    response: data
+  });
+
   if (data.error) {
-    throw new Error(data.error.message || 'Erro ao criar público');
+    console.error('❌ [Meta API Error] Criar Público:', {
+      message: data.error.message,
+      code: data.error.code,
+      type: data.error.type,
+      error_subcode: data.error.error_subcode,
+      fbtrace_id: data.error.fbtrace_id,
+      template: template.id,
+      name: standardizedName,
+      adAccountId: adAccountId
+    });
+    throw new Error(`Meta API Error [${data.error.code || 'UNKNOWN'}]: ${data.error.message || 'Failed to create custom audience'}`);
   }
 
   return { id: data.id, name: standardizedName };
@@ -149,7 +183,16 @@ async function createLookalikeAudience(
   const data = await response.json();
 
   if (data.error) {
-    throw new Error(data.error.message || 'Erro ao criar lookalike');
+    console.error('❌ [Meta API Error] Criar Lookalike:', {
+      message: data.error.message,
+      code: data.error.code,
+      type: data.error.type,
+      error_subcode: data.error.error_subcode,
+      fbtrace_id: data.error.fbtrace_id,
+      config: config.id,
+      name: standardizedName
+    });
+    throw new Error(`Meta API Error [${data.error.code}]: ${data.error.message}`);
   }
 
   return { id: data.id, name: standardizedName };
@@ -300,7 +343,11 @@ export async function POST(req: NextRequest) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (error: any) {
-        console.error(`❌ Erro ao criar ${template.name}:`, error.message);
+        console.error(`❌ Erro ao criar ${template.name}:`, {
+          message: error.message,
+          template_id: template.id,
+          type: template.type
+        });
         
         // Se for erro de duplicado, marcar como existente
         if (error.message?.includes('already exists') || error.message?.includes('duplicate')) {
@@ -313,7 +360,8 @@ export async function POST(req: NextRequest) {
           results.failed.push({
             template_id: template.id,
             name: template.name,
-            error: error.message
+            error: error.message,
+            type: template.type
           });
         }
       }
