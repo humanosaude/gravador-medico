@@ -1009,8 +1009,8 @@ export async function POST(request: NextRequest) {
     if (usePlacementAdvantage) {
       // Advantage+ Placements - deixa a Meta otimizar
       finalTargeting.publisher_platforms = ['facebook', 'instagram', 'audience_network'];
-      // ✅ CORRIGIDO v24.0: Removido 'video_feeds' (descontinuado), adicionado 'reels'
-      finalTargeting.facebook_positions = ['feed', 'story', 'marketplace', 'right_hand_column', 'reels'];
+      // ✅ CORRIGIDO v24.0: 'reels' só é válido em instagram_positions, NÃO em facebook_positions
+      finalTargeting.facebook_positions = ['feed', 'story', 'marketplace', 'right_hand_column'];
       finalTargeting.instagram_positions = ['stream', 'story', 'reels', 'explore', 'explore_home'];
       console.log('   🔧 Smart Default: Advantage+ Placements ativado');
     }
