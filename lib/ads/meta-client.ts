@@ -550,3 +550,44 @@ export async function getAdSetDetails(adSetId: string): Promise<any> {
     handleMetaError(error);
   }
 }
+
+// =====================================================
+// DELETAR CAMPANHA (ROLLBACK)
+// =====================================================
+// Usado para rollback quando a criação do AdSet falha
+// Evita campanhas órfãs no Meta Ads Manager
+// =====================================================
+
+export async function deleteCampaign(campaignId: string): Promise<boolean> {
+  try {
+    const campaign = new Campaign(campaignId);
+    
+    // Deleta a campanha permanentemente
+    await campaign.delete();
+
+    console.log(`🗑️ Campanha ${campaignId} deletada (rollback)`);
+    return true;
+  } catch (error) {
+    console.error(`⚠️ Falha ao deletar campanha ${campaignId} no rollback:`, error);
+    // Não propaga o erro para não mascarar o erro original
+    return false;
+  }
+}
+
+// =====================================================
+// DELETAR ADSET (ROLLBACK)
+// =====================================================
+
+export async function deleteAdSet(adSetId: string): Promise<boolean> {
+  try {
+    const adSet = new AdSet(adSetId);
+    
+    await adSet.delete();
+
+    console.log(`🗑️ AdSet ${adSetId} deletado (rollback)`);
+    return true;
+  } catch (error) {
+    console.error(`⚠️ Falha ao deletar AdSet ${adSetId} no rollback:`, error);
+    return false;
+  }
+}

@@ -22,6 +22,7 @@ import {
   createAdCreative,
   createAd,
   buildTargeting,
+  deleteCampaign,
 } from '@/lib/ads/meta-client';
 import { getFunnelAudience, type FunnelStage } from '@/lib/meta-audiences';
 import { generateAdNames, inferFunnelStage, type NamingInput } from '@/lib/utils/ad-naming';
@@ -1048,7 +1049,7 @@ export async function POST(request: NextRequest) {
     console.log(`   🔧 Smart Default: Bid Strategy = ${bidStrategy}`);
 
     // =====================================================
-    // ETAPA 5: Criar AdSet
+    // ETAPA 5: Criar AdSet (com ROLLBACK automático)
     // =====================================================
 
     console.log('📋 Etapa 5: Criando AdSet...');
@@ -1059,19 +1060,44 @@ export async function POST(request: NextRequest) {
     const customEventType = getCustomEventType(funnelStage, objective);
     console.log(`🎯 Custom Event Type: ${customEventType} (funil: ${funnelStage}, objetivo: ${objective})`);
 
-    const adSetId = await createAdSet(metaConfig.adAccountId, {
-      name: adSetName,
-      campaign_id: campaignId,
-      daily_budget: dailyBudgetCents,
-      billing_event: 'IMPRESSIONS',
-      optimization_goal: 'OFFSITE_CONVERSIONS',
-      targeting: finalTargeting as unknown as Parameters<typeof createAdSet>[1]['targeting'],
-      status: status,
-      bid_strategy: bidStrategy,
-      // ✅ ADICIONAR pixelId e customEventType para promoted_object
-      pixel_id: metaConfig.pixelId,
-      custom_event_type: customEventType,
-    });
+    let adSetId: string;
+    
+    try {
+      adSetId = await createAdSet(metaConfig.adAccountId, {
+        name: adSetName,
+        campaign_id: campaignId,
+        daily_budget: dailyBudgetCents,
+        billing_event: 'IMPRESSIONS',
+        optimization_goal: 'OFFSITE_CONVERSIONS',
+        targeting: finalTargeting as unknown as Parameters<typeof createAdSet>[1]['targeting'],
+        status: status,
+        bid_strategy: bidStrategy,
+        // ✅ ADICIONAR pixelId e customEventType para promoted_object
+        pixel_id: metaConfig.pixelId,
+        custom_event_type: customEventType,
+      });
+    } catch (adSetError) {
+      // 🔴 ROLLBACK: Se AdSet falhar, deletar a campanha criada
+      console.error('❌ Erro ao criar AdSet. Iniciando ROLLBACK...');
+      console.error('   Erro original:', adSetError);
+      
+      try {
+        console.log(`🗑️ ROLLBACK: Deletando campanha órfã ${campaignId}...`);
+        const rollbackSuccess = await deleteCampaign(campaignId);
+        
+        if (rollbackSuccess) {
+          console.log(`✅ ROLLBACK: Campanha ${campaignId} deletada com sucesso`);
+        } else {
+          console.error(`⚠️ ROLLBACK: Falha ao deletar campanha ${campaignId}`);
+        }
+      } catch (rollbackError) {
+        console.error('⚠️ Erro no rollback:', rollbackError);
+      }
+      
+      // Re-lançar o erro original com contexto de rollback
+      const errorMessage = adSetError instanceof Error ? adSetError.message : String(adSetError);
+      throw new Error(`Falha ao criar AdSet (campanha revertida): ${errorMessage}`);
+    }
 
     await logCampaignCreation({
       meta_campaign_id: campaignId,
