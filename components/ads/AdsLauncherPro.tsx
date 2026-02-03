@@ -57,6 +57,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import CampaignSummaryModal from '@/app/admin/ai/escala-automatica/components/CampaignSummaryModal';
 
 // =====================================================
 // TIPOS
@@ -354,8 +355,23 @@ export default function AdsLauncherPro() {
   // Publicação
   const [status, setStatus] = useState<LaunchStatus>('idle');
   const [result, setResult] = useState<CampaignResult | null>(null);
+  
+  // Modal de Resumo da Campanha
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [campaignSummary, setCampaignSummary] = useState<{
+    campaignId: string;
+    campaignName: string;
+    adSetId: string;
+    adSetName: string;
+    adIds: string[];
+    budget: number;
+    objective: string;
+    status: 'PAUSED' | 'ACTIVE';
+    adAccountId?: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const successAlertRef = useRef<HTMLDivElement>(null);
 
   // Helpers
   const completePhase = (phaseId: number) => {
@@ -697,7 +713,28 @@ export default function AdsLauncherPro() {
       if (data.success) {
         setStatus('success');
         setResult(data);
+        
+        // ✅ Abrir modal de resumo com dados da campanha
+        const objectiveLabel = CAMPAIGN_OBJECTIVES.find(o => o.value === objectiveType)?.label || objectiveType;
+        const summary = {
+          campaignId: data.data?.campaign?.id || '',
+          campaignName: data.data?.campaign?.name || objectiveLabel || 'Campanha',
+          adSetId: data.data?.adset?.id || '',
+          adSetName: `AdSet • R$ ${dailyBudget}/dia`,
+          adIds: data.data?.ads?.ids || [],
+          budget: parseFloat(dailyBudget),
+          objective: objectiveLabel,
+          status: publishStatus,
+        };
+        setCampaignSummary(summary);
+        setShowSummaryModal(true);
+        
         toast.success(enableSplitTesting ? `${generatedAdSets.length} AdSets criados!` : 'Campanha publicada!');
+        
+        // ✅ Auto-scroll para alerta de sucesso
+        setTimeout(() => {
+          successAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
       } else {
         throw new Error(data.error || 'Erro ao publicar');
       }
@@ -2176,6 +2213,13 @@ export default function AdsLauncherPro() {
           <p className="text-sm">Complete a fase anterior para desbloquear</p>
         </div>
       )}
+      
+      {/* Modal de Resumo da Campanha */}
+      <CampaignSummaryModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        summary={campaignSummary}
+      />
     </div>
   );
 }
