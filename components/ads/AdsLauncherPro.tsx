@@ -5,6 +5,9 @@
 // =====================================================
 // Interface avançada para criação de campanhas com:
 // - Configuração de IA (GPT-5.2)
+// - ANÁLISE INTELIGENTE DE CRIATIVOS (NOVO)
+// - Recomendação automática de objetivo baseada no visual
+// - Ranking de variações com copy CAMPEÃ
 // - Meta Advantage+ vs Segmentação Manual
 // - Estratégias de Público (Lookalike, Remarketing, etc)
 // - Pipeline assíncrono de vídeos
@@ -41,6 +44,9 @@ import {
   TrendingUp,
   ShoppingCart,
   Crosshair,
+  Trophy,
+  Info,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AdPreviewCard, { type AdPreviewData } from './AdPreviewCard';
@@ -69,7 +75,41 @@ interface CampaignResult {
   error?: string;
 }
 
-type LaunchStatus = 'idle' | 'uploading' | 'generating' | 'creating' | 'success' | 'error';
+// Interface para análise inteligente do criativo
+interface CreativeAnalysis {
+  format: 'IMAGE' | 'VIDEO' | 'CAROUSEL';
+  visual_elements: string[];
+  colors: string[];
+  text_in_image: string | null;
+  mood: string;
+  recommended_objective: 'TRAFEGO' | 'CONVERSAO' | 'REMARKETING';
+  recommendation_confidence: number;
+  recommendation_reasoning: string;
+  recommended_angles: string[];
+  copywriting_suggestions: string[];
+  technical_details: {
+    has_people: boolean;
+    has_product: boolean;
+    has_text_overlay: boolean;
+    is_professional_photo: boolean;
+    visual_quality_score: number;
+  };
+  warnings: string[];
+  optimization_tips: string[];
+}
+
+// Interface para variações de copy com ranking
+interface CopyVariation {
+  id: number;
+  primary_text: string;
+  headline: string;
+  cta: string;
+  predicted_performance: number; // 0-100
+  performance_label: string; // "CAMPEÃ", "Alternativa", "Teste A/B"
+  reasoning: string;
+}
+
+type LaunchStatus = 'idle' | 'uploading' | 'analyzing' | 'generating' | 'creating' | 'success' | 'error';
 
 // =====================================================
 // CONFIGURAÇÕES
@@ -172,6 +212,24 @@ const CAMPAIGN_OBJECTIVE_OPTIONS: Array<{
 ];
 
 // =====================================================
+// HELPER: Obter Token de Autenticação
+// =====================================================
+const getAuthToken = async (): Promise<string> => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || '';
+  } catch (error) {
+    console.error('Erro ao obter token:', error);
+    return '';
+  }
+};
+
+// =====================================================
 // COMPONENTE PRINCIPAL
 // =====================================================
 
@@ -208,14 +266,16 @@ export default function AdsLauncherPro() {
 
   // Estados do Sistema de 2 Etapas (Meta-Prompt)
   const [generatedPrompt, setGeneratedPrompt] = useState('');
-  const [generatedVariacoes, setGeneratedVariacoes] = useState<Array<{
-    primary_text: string;
-    headline: string;
-    cta: string;
-  }>>([]);
+  const [generatedVariacoes, setGeneratedVariacoes] = useState<CopyVariation[]>([]);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [promptGenerated, setPromptGenerated] = useState(false);
   const [selectedVariacaoIndex, setSelectedVariacaoIndex] = useState(0);
+
+  // Estados de ANÁLISE INTELIGENTE do Criativo (NOVO)
+  const [creativeAnalysis, setCreativeAnalysis] = useState<CreativeAnalysis | null>(null);
+  const [isAnalyzingCreative, setIsAnalyzingCreative] = useState(false);
+  const [creativeUrl, setCreativeUrl] = useState('');
+  const [showAnalysisDetails, setShowAnalysisDetails] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -248,7 +308,7 @@ export default function AdsLauncherPro() {
     }
   }, []);
 
-  const addFiles = (newFiles: File[]) => {
+  const addFiles = async (newFiles: File[]) => {
     const uploadedFiles: UploadedFile[] = newFiles.map(file => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       file,
@@ -256,6 +316,62 @@ export default function AdsLauncherPro() {
       type: file.type.startsWith('video/') ? 'video' : 'image',
     }));
     setFiles(prev => [...prev, ...uploadedFiles].slice(0, 10));
+    
+    // Analisar o primeiro criativo automaticamente se for imagem
+    const firstImage = newFiles.find(f => f.type.startsWith('image/'));
+    if (firstImage && !creativeAnalysis) {
+      await analyzeCreativeWithAI(firstImage);
+    }
+  };
+
+  // =====================================================
+  // ANÁLISE INTELIGENTE DO CRIATIVO COM IA (NOVO)
+  // =====================================================
+  // GPT-5.2 Vision analisa o criativo e recomenda objetivo
+  // =====================================================
+
+  const analyzeCreativeWithAI = async (file: File) => {
+    setIsAnalyzingCreative(true);
+    setStatus('analyzing');
+    
+    try {
+      const token = await getAuthToken();
+      
+      const formData = new FormData();
+      formData.append('format', file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE');
+      formData.append('file', file);
+
+      const response = await fetch('/api/ads/analyze-creative', {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.analysis) {
+          setCreativeAnalysis(data.analysis);
+          setCreativeUrl(data.creative_url);
+          
+          // PRÉ-SELECIONAR o objetivo recomendado pela IA
+          setObjectiveType(data.analysis.recommended_objective);
+          
+          // Atualizar nome da campanha
+          const objetivoLabel = CAMPAIGN_OBJECTIVE_OPTIONS.find(
+            o => o.value === data.analysis.recommended_objective
+          )?.label || data.analysis.recommended_objective;
+          setObjective(`Campanha de ${objetivoLabel} - Gravador Médico`);
+          
+          console.log(`🤖 IA recomendou: ${data.analysis.recommended_objective} (${data.analysis.recommendation_confidence}% confiança)`);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao analisar criativo:', error);
+    } finally {
+      setIsAnalyzingCreative(false);
+      setStatus('idle');
+    }
   };
 
   const removeFile = (id: string) => {
@@ -264,52 +380,103 @@ export default function AdsLauncherPro() {
       if (removed) URL.revokeObjectURL(removed.preview);
       return prev.filter(f => f.id !== id);
     });
-    // Reset preview quando arquivos mudam
+    // Reset quando arquivos mudam
     setPreviewReady(false);
     setPreviews([]);
+    // Reset análise se não houver mais arquivos
+    if (files.length <= 1) {
+      setCreativeAnalysis(null);
+      setCreativeUrl('');
+    }
   };
 
   // =====================================================
-  // SISTEMA SIMPLIFICADO: GERAR COPIES COM IA
+  // SISTEMA INTELIGENTE: GERAR COPIES COM RANKING
   // =====================================================
-  // Usa a base de conhecimento do Gravador Médico embutida.
-  // Usuário só escolhe: TRAFEGO, CONVERSAO ou REMARKETING.
+  // Usa a análise do criativo + base de conhecimento.
+  // Retorna 3 variações com ranking de performance.
   // =====================================================
 
   const handleGeneratePrompt = async () => {
     setIsGeneratingPrompt(true);
     
     try {
+      // Se temos análise do criativo, usar o novo endpoint
+      if (creativeAnalysis) {
+        const token = await getAuthToken();
+        
+        const response = await fetch('/api/ads/generate-copies', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({
+            objective_type: objectiveType,
+            creative_analysis: creativeAnalysis,
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (data.success && data.variations) {
+          // Novo sistema: variações com ranking
+          setGeneratedVariacoes(data.variations);
+          setSelectedVariacaoIndex(0);
+          
+          // Usar a CAMPEÃ como prompt editável
+          const campea = data.variations[0];
+          setGeneratedPrompt(`📝 PRIMARY TEXT:\n${campea.primary_text}\n\n📌 HEADLINE:\n${campea.headline}\n\n🔘 CTA:\n${campea.cta}`);
+          setPromptGenerated(true);
+          
+          // Atualizar objetivo com base no tipo selecionado
+          const objetivoLabel = CAMPAIGN_OBJECTIVE_OPTIONS.find(o => o.value === objectiveType)?.label || objectiveType;
+          setObjective(`Campanha de ${objetivoLabel} - Gravador Médico`);
+          return;
+        }
+      }
+      
+      // Fallback para endpoint antigo
       const response = await fetch('/api/ads/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          objective_type: objectiveType, // TRAFEGO | CONVERSAO | REMARKETING
+          objective_type: objectiveType,
         }),
       });
 
       const data = await response.json();
       
       if (data.success) {
-        // Novo sistema: retorna variações prontas
         if (data.variacoes && data.variacoes.length > 0) {
-          setGeneratedVariacoes(data.variacoes);
+          // Converter para novo formato com ranking
+          const variacoesComRanking: CopyVariation[] = data.variacoes.map((v: any, i: number) => ({
+            id: i + 1,
+            primary_text: v.primary_text,
+            headline: v.headline,
+            cta: v.cta,
+            predicted_performance: 80 - (i * 10), // Estimativa simples
+            performance_label: i === 0 ? 'CAMPEÃ' : i === 1 ? 'Alternativa' : 'Teste A/B',
+            reasoning: i === 0 
+              ? 'Melhor alinhamento com objetivo e gatilhos comprovados'
+              : i === 1 
+              ? 'Ângulo alternativo para diversificação'
+              : 'Ângulo criativo para teste A/B'
+          }));
+          
+          setGeneratedVariacoes(variacoesComRanking);
           setSelectedVariacaoIndex(0);
-          // Usar a primeira variação como prompt editável
           const primeiraVariacao = data.variacoes[0];
           setGeneratedPrompt(`📝 PRIMARY TEXT:\n${primeiraVariacao.primary_text}\n\n📌 HEADLINE:\n${primeiraVariacao.headline}\n\n🔘 CTA:\n${primeiraVariacao.cta}`);
         } else if (data.prompt) {
-          // Fallback para modo legado
           setGeneratedPrompt(data.prompt);
         }
         setPromptGenerated(true);
         
-        // Atualizar objetivo com base no tipo selecionado
         const objetivoLabel = CAMPAIGN_OBJECTIVE_OPTIONS.find(o => o.value === objectiveType)?.label || objectiveType;
         setObjective(`Campanha de ${objetivoLabel} - Gravador Médico`);
       } else {
         console.error('Erro na API:', data.error);
-        // Fallback com prompt básico
         setGeneratedPrompt(`Erro ao gerar. Tente novamente.\n\nErro: ${data.error || 'Desconhecido'}`);
         setPromptGenerated(true);
       }
@@ -336,6 +503,9 @@ export default function AdsLauncherPro() {
       setSelectedVariacaoIndex(index);
       const variacao = generatedVariacoes[index];
       setGeneratedPrompt(`📝 PRIMARY TEXT:\n${variacao.primary_text}\n\n📌 HEADLINE:\n${variacao.headline}\n\n🔘 CTA:\n${variacao.cta}`);
+      
+      // Ativar preview automático
+      setShowPreview(true);
     }
   };
 
@@ -762,6 +932,138 @@ export default function AdsLauncherPro() {
                     ))}
                   </div>
                 )}
+
+                {/* Status de Análise do Criativo */}
+                {isAnalyzingCreative && (
+                  <div className="mt-4 p-4 bg-purple-900/30 border border-purple-700/50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                      <div>
+                        <p className="text-purple-200 font-medium">🤖 GPT-5.2 analisando criativo...</p>
+                        <p className="text-xs text-purple-300/70">Identificando elementos visuais e recomendando objetivo</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Card de Análise Inteligente do Criativo */}
+                {creativeAnalysis && !isAnalyzingCreative && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 p-4 bg-gradient-to-br from-purple-900/40 to-blue-900/40 border border-purple-500/30 rounded-xl"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-500/20 rounded-lg">
+                        <Sparkles className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-purple-200 flex items-center gap-2">
+                            🤖 Análise Inteligente
+                            <span className="text-xs bg-purple-600/50 px-2 py-0.5 rounded-full text-purple-200">
+                              GPT-5.2
+                            </span>
+                          </h4>
+                          <button
+                            onClick={() => setShowAnalysisDetails(!showAnalysisDetails)}
+                            className="text-xs text-purple-300 hover:text-purple-200"
+                          >
+                            {showAnalysisDetails ? 'Ocultar detalhes' : 'Ver detalhes'}
+                          </button>
+                        </div>
+
+                        {/* Recomendação de Objetivo */}
+                        <div className="mt-3 p-3 bg-black/30 rounded-lg">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <TrendingUp className="w-4 h-4 text-green-400" />
+                            <span className="text-sm text-gray-300">Recomendação:</span>
+                            <span className={cn(
+                              'px-2 py-1 rounded-full text-xs font-bold',
+                              creativeAnalysis.recommended_objective === 'CONVERSAO' 
+                                ? 'bg-green-600 text-white' 
+                                : creativeAnalysis.recommended_objective === 'REMARKETING'
+                                ? 'bg-yellow-600 text-black'
+                                : 'bg-blue-600 text-white'
+                            )}>
+                              {creativeAnalysis.recommended_objective === 'TRAFEGO' ? '🌊 TRÁFEGO' : 
+                               creativeAnalysis.recommended_objective === 'CONVERSAO' ? '💰 CONVERSÃO' : 
+                               '🎯 REMARKETING'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              ({creativeAnalysis.recommendation_confidence}% confiança)
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
+                            💡 {creativeAnalysis.recommendation_reasoning}
+                          </p>
+                        </div>
+
+                        {/* Detalhes Expandidos */}
+                        <AnimatePresence>
+                          {showAnalysisDetails && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-3 space-y-3"
+                            >
+                              {/* Elementos Visuais */}
+                              <div>
+                                <span className="text-xs text-gray-400">Elementos detectados:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {creativeAnalysis.visual_elements.slice(0, 5).map((el, i) => (
+                                    <span key={i} className="text-xs bg-gray-700 px-2 py-0.5 rounded text-gray-300">
+                                      {el}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Mood e Qualidade */}
+                              <div className="flex gap-4">
+                                <div>
+                                  <span className="text-xs text-gray-400">Mood:</span>
+                                  <p className="text-sm text-white">{creativeAnalysis.mood}</p>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-gray-400">Qualidade:</span>
+                                  <p className="text-sm text-white">{creativeAnalysis.technical_details.visual_quality_score}/10</p>
+                                </div>
+                              </div>
+
+                              {/* Avisos */}
+                              {creativeAnalysis.warnings.length > 0 && (
+                                <div className="p-2 bg-yellow-900/30 border border-yellow-700/50 rounded">
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                                    <div className="text-xs text-yellow-200">
+                                      {creativeAnalysis.warnings.map((w, i) => (
+                                        <p key={i}>• {w}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Dicas */}
+                              <div className="p-2 bg-blue-900/30 border border-blue-700/50 rounded">
+                                <div className="flex items-start gap-2">
+                                  <Lightbulb className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                                  <div className="text-xs text-blue-200">
+                                    {creativeAnalysis.optimization_tips.slice(0, 2).map((tip, i) => (
+                                      <p key={i}>• {tip}</p>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </div>
 
@@ -770,9 +1072,17 @@ export default function AdsLauncherPro() {
               <div className="px-6 py-4 border-b border-gray-800 flex items-center gap-3">
                 <Target className="w-5 h-5 text-purple-400" />
                 <h3 className="font-semibold text-white">Objetivo da Campanha</h3>
-                <span className="ml-auto text-xs bg-purple-600/30 text-purple-300 px-2 py-1 rounded-full">
-                  IA conhece o produto
-                </span>
+                {creativeAnalysis && (
+                  <span className="ml-auto text-xs bg-green-600/30 text-green-300 px-2 py-1 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    IA recomendou
+                  </span>
+                )}
+                {!creativeAnalysis && (
+                  <span className="ml-auto text-xs bg-purple-600/30 text-purple-300 px-2 py-1 rounded-full">
+                    IA conhece o produto
+                  </span>
+                )}
               </div>
               <div className="p-6 space-y-4">
                 
@@ -788,12 +1098,18 @@ export default function AdsLauncherPro() {
                         setGeneratedVariacoes([]);
                       }}
                       className={cn(
-                        'p-4 rounded-xl border-2 text-center transition-all',
+                        'p-4 rounded-xl border-2 text-center transition-all relative',
                         objectiveType === opt.value
                           ? `${opt.borderColor} ${opt.bgColor}`
                           : 'border-gray-700 hover:border-gray-600'
                       )}
                     >
+                      {/* Badge de Recomendado */}
+                      {creativeAnalysis?.recommended_objective === opt.value && (
+                        <div className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          ✨ IA
+                        </div>
+                      )}
                       <div className="text-3xl mb-2">{opt.emoji}</div>
                       <div className={cn('font-semibold', objectiveType === opt.value ? opt.color : 'text-white')}>
                         {opt.label}
@@ -840,7 +1156,7 @@ export default function AdsLauncherPro() {
                       <div className="flex items-center justify-between">
                         <label className="text-sm font-medium text-green-400 flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4" />
-                          {generatedVariacoes.length} variações geradas - Escolha uma:
+                          {generatedVariacoes.length} variações geradas com ranking:
                         </label>
                         <button
                           onClick={handleRegeneratePrompt}
@@ -848,38 +1164,69 @@ export default function AdsLauncherPro() {
                           className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
                         >
                           <RefreshCcw className="w-3 h-3" />
-                          Regenerar
+                          Gerar Novas
                         </button>
                       </div>
 
-                      {/* Cards de Variações */}
+                      {/* Cards de Variações com Ranking */}
                       <div className="grid grid-cols-1 gap-3">
                         {generatedVariacoes.map((variacao, index) => (
                           <button
                             key={index}
                             onClick={() => handleSelectVariacao(index)}
                             className={cn(
-                              'p-4 rounded-xl border text-left transition-all',
+                              'p-4 rounded-xl border text-left transition-all relative',
                               selectedVariacaoIndex === index
-                                ? 'border-green-500 bg-green-900/20'
+                                ? 'border-green-500 bg-green-900/20 ring-2 ring-green-500/30'
                                 : 'border-gray-700 hover:border-gray-600 bg-gray-800/50'
                             )}
                           >
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className={cn(
-                                'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold',
-                                selectedVariacaoIndex === index
-                                  ? 'bg-green-500 text-white'
-                                  : 'bg-gray-700 text-gray-400'
-                              )}>
-                                {index + 1}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {selectedVariacaoIndex === index && '✓ Selecionada'}
-                              </span>
+                            {/* Header com Ranking */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                {variacao.performance_label === 'CAMPEÃ' && (
+                                  <Trophy className="w-5 h-5 text-yellow-400" />
+                                )}
+                                {variacao.performance_label === 'Alternativa' && (
+                                  <span className="text-lg">🥈</span>
+                                )}
+                                {variacao.performance_label === 'Teste A/B' && (
+                                  <span className="text-lg">🧪</span>
+                                )}
+                                <span className={cn(
+                                  'px-2 py-0.5 rounded-full text-xs font-bold',
+                                  variacao.performance_label === 'CAMPEÃ' 
+                                    ? 'bg-yellow-600 text-black'
+                                    : variacao.performance_label === 'Alternativa'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-600 text-gray-200'
+                                )}>
+                                  {variacao.performance_label}
+                                </span>
+                              </div>
+                              
+                              {/* Barra de Performance */}
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={cn(
+                                      'h-full rounded-full',
+                                      variacao.predicted_performance >= 70 ? 'bg-green-500' :
+                                      variacao.predicted_performance >= 50 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    )}
+                                    style={{ width: `${variacao.predicted_performance}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-gray-400">
+                                  {variacao.predicted_performance}%
+                                </span>
+                              </div>
                             </div>
-                            <p className="text-white text-sm line-clamp-2">{variacao.primary_text}</p>
-                            <div className="mt-2 flex items-center gap-2">
+
+                            {/* Copy Preview */}
+                            <p className="text-white text-sm line-clamp-2 mb-2">{variacao.primary_text}</p>
+                            <div className="flex items-center gap-2 mb-2">
                               <span className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-300">
                                 📌 {variacao.headline}
                               </span>
@@ -887,6 +1234,20 @@ export default function AdsLauncherPro() {
                                 🔘 {variacao.cta}
                               </span>
                             </div>
+
+                            {/* Justificativa */}
+                            {variacao.reasoning && (
+                              <div className="mt-2 p-2 bg-black/30 rounded text-xs text-gray-400">
+                                💡 {variacao.reasoning}
+                              </div>
+                            )}
+
+                            {/* Indicador de Seleção */}
+                            {selectedVariacaoIndex === index && (
+                              <div className="absolute top-2 right-2">
+                                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                              </div>
+                            )}
                           </button>
                         ))}
                       </div>
