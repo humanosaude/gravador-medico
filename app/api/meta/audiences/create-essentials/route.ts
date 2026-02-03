@@ -12,7 +12,10 @@ import {
   ESSENTIAL_LOOKALIKES,
   prepareAudienceRule,
   AudienceTemplate,
-  LookalikeConfig
+  LookalikeConfig,
+  generateAudienceName,
+  generateLookalikeName,
+  SYSTEM_PREFIX
 } from '@/lib/meta/audience-templates';
 
 export const runtime = 'nodejs';
@@ -60,6 +63,9 @@ async function createCustomAudience(
 ): Promise<{ id: string; name: string }> {
   const { adAccountId, accessToken, pixelId, pageId, igAccountId } = credentials;
 
+  // Gerar nome padronizado usando a convenção [GDM]
+  const standardizedName = generateAudienceName(template);
+
   // Preparar regra com placeholders substituídos
   const rule = prepareAudienceRule(template, {
     pixel_id: pixelId,
@@ -78,9 +84,9 @@ async function createCustomAudience(
 
   const formData = new URLSearchParams();
   formData.append('access_token', accessToken);
-  formData.append('name', template.name);
+  formData.append('name', standardizedName); // Usa nome padronizado
   formData.append('subtype', subtypeMap[template.type] || 'CUSTOM');
-  formData.append('description', template.description);
+  formData.append('description', `${template.description} | Template: ${template.id}`);
   formData.append('rule', JSON.stringify(rule));
   formData.append('prefill', 'true');
   formData.append('customer_file_source', 'USER_PROVIDED_ONLY');
@@ -100,15 +106,19 @@ async function createCustomAudience(
     throw new Error(data.error.message || 'Erro ao criar público');
   }
 
-  return { id: data.id, name: template.name };
+  return { id: data.id, name: standardizedName };
 }
 
 async function createLookalikeAudience(
   config: LookalikeConfig,
   sourceAudienceId: string,
+  sourceTemplate: AudienceTemplate,
   credentials: MetaCredentials
 ): Promise<{ id: string; name: string }> {
   const { adAccountId, accessToken } = credentials;
+
+  // Gerar nome padronizado para lookalike usando a convenção [GDM]
+  const standardizedName = generateLookalikeName(config, sourceTemplate);
 
   const spec = {
     origin: [{ id: sourceAudienceId, type: 'custom_audience' }],
@@ -123,7 +133,7 @@ async function createLookalikeAudience(
 
   const formData = new URLSearchParams();
   formData.append('access_token', accessToken);
-  formData.append('name', config.name);
+  formData.append('name', standardizedName); // Usa nome padronizado
   formData.append('subtype', 'LOOKALIKE');
   formData.append('lookalike_spec', JSON.stringify(spec));
 
@@ -142,7 +152,7 @@ async function createLookalikeAudience(
     throw new Error(data.error.message || 'Erro ao criar lookalike');
   }
 
-  return { id: data.id, name: config.name };
+  return { id: data.id, name: standardizedName };
 }
 
 async function checkAudienceSize(
@@ -352,20 +362,32 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // Buscar template base para gerar nome
+        const sourceTemplate = ESSENTIAL_AUDIENCES.find(t => t.id === lookalikeConfig.source_template_id);
+        if (!sourceTemplate) {
+          results.failed.push({
+            template_id: lookalikeConfig.id,
+            name: lookalikeConfig.name,
+            error: 'Template base não encontrado'
+          });
+          continue;
+        }
+
         // Criar lookalike
         const lookalike = await createLookalikeAudience(
           lookalikeConfig,
           sourceAudienceId,
+          sourceTemplate,
           credentials
         );
 
-        console.log(`✅ Lookalike criado: ${lookalikeConfig.name} (ID: ${lookalike.id})`);
+        console.log(`✅ Lookalike criado: ${lookalike.name} (ID: ${lookalike.id})`);
 
         // Salvar no banco
         await supabaseAdmin.from('ads_audiences').upsert({
           meta_audience_id: lookalike.id,
           template_id: lookalikeConfig.id,
-          name: lookalikeConfig.name,
+          name: lookalike.name, // Usa nome padronizado retornado
           audience_type: 'LOOKALIKE',
           funnel_stage: 'TOPO',
           source_audience_id: sourceAudienceId,

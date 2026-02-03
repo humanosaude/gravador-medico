@@ -585,11 +585,163 @@ export function prepareAudienceRule(
   return JSON.parse(ruleString);
 }
 
+// ============================================
+// CONVENÇÃO DE NOMENCLATURA PARA PÚBLICOS
+// ============================================
+
+/**
+ * Prefixo padrão para identificar públicos criados pelo sistema
+ * [GDM] = Gravador Médico (sistema)
+ */
+export const SYSTEM_PREFIX = '[GDM]';
+
+/**
+ * Mapeamento de tipos de público para siglas
+ */
+const TYPE_LABELS: Record<AudienceType, string> = {
+  'WEBSITE': 'WEB',
+  'CUSTOMER_LIST': 'LIST',
+  'ENGAGEMENT': 'ENG',
+  'LOOKALIKE': 'LAL',
+  'VIDEO': 'VID',
+  'LEAD_FORM': 'LEAD',
+};
+
+/**
+ * Mapeamento de estágios de funil
+ */
+const FUNNEL_LABELS: Record<string, string> = {
+  'TOPO': 'T',
+  'MEIO': 'M', 
+  'FUNDO': 'F',
+};
+
+/**
+ * Gera nome padronizado para público criado pelo sistema
+ * Formato: [GDM] [FUNIL] TIPO - Descrição (Xd)
+ * 
+ * Exemplos:
+ * - [GDM] [F] WEB - Visitantes 30d
+ * - [GDM] [T] LAL - Compradores 1%
+ * - [GDM] [M] ENG - Instagram 365d
+ * 
+ * @param template - Template do público
+ * @param options - Opções adicionais (ex: ratio para lookalike)
+ */
+export function generateAudienceName(
+  template: AudienceTemplate,
+  options?: {
+    lookalike_ratio?: number;
+    custom_suffix?: string;
+  }
+): string {
+  const prefix = SYSTEM_PREFIX;
+  const funnel = `[${FUNNEL_LABELS[template.funnel_stage] || 'M'}]`;
+  const type = TYPE_LABELS[template.type] || template.type;
+  
+  // Extrai descrição curta do nome do template
+  let shortDesc = template.name
+    .replace(/Todos os /gi, '')
+    .replace(/do Site /gi, '')
+    .replace(/ do Site/gi, '')
+    .replace(/ \(.*\)/g, '') // Remove parênteses
+    .replace(/dias/gi, 'd')
+    .trim();
+  
+  // Adiciona retenção se não estiver no nome
+  if (!shortDesc.includes('d') && template.retention_days) {
+    shortDesc = `${shortDesc} ${template.retention_days}d`;
+  }
+  
+  // Para lookalikes, adiciona ratio
+  if (options?.lookalike_ratio) {
+    const percentage = Math.round(options.lookalike_ratio * 100);
+    shortDesc = `${shortDesc} ${percentage}%`;
+  }
+  
+  // Adiciona sufixo customizado se houver
+  if (options?.custom_suffix) {
+    shortDesc = `${shortDesc} ${options.custom_suffix}`;
+  }
+
+  return `${prefix} ${funnel} ${type} - ${shortDesc}`;
+}
+
+/**
+ * Gera nome padronizado para lookalike
+ * Formato: [GDM] [FUNIL] LAL - Base X%
+ * 
+ * @param config - Configuração do lookalike
+ * @param sourceTemplate - Template do público base
+ */
+export function generateLookalikeName(
+  config: LookalikeConfig,
+  sourceTemplate: AudienceTemplate
+): string {
+  const prefix = SYSTEM_PREFIX;
+  // Lookalikes geralmente são TOPO de funil
+  const funnel = '[T]';
+  const percentage = Math.round(config.ratio * 100);
+  
+  // Simplifica nome do público base
+  let baseName = sourceTemplate.name
+    .replace(/Todos os /gi, '')
+    .replace(/do Site /gi, '')
+    .replace(/ do Site/gi, '')
+    .replace(/ \(.*\)/g, '')
+    .replace(/dias/gi, 'd')
+    .substring(0, 30) // Limita tamanho
+    .trim();
+  
+  return `${prefix} ${funnel} LAL - ${baseName} ${percentage}%`;
+}
+
+/**
+ * Verifica se um público foi criado pelo sistema
+ */
+export function isSystemAudience(audienceName: string): boolean {
+  return audienceName.startsWith(SYSTEM_PREFIX);
+}
+
+/**
+ * Extrai informações de um nome padronizado
+ */
+export function parseAudienceName(name: string): {
+  isSystemAudience: boolean;
+  funnelStage?: string;
+  type?: string;
+  description?: string;
+} | null {
+  if (!name.startsWith(SYSTEM_PREFIX)) {
+    return { isSystemAudience: false };
+  }
+
+  const match = name.match(/\[GDM\] \[([TMF])\] ([A-Z]+) - (.+)/);
+  if (!match) {
+    return { isSystemAudience: true };
+  }
+
+  const funnelMap: Record<string, string> = { 'T': 'TOPO', 'M': 'MEIO', 'F': 'FUNDO' };
+  
+  return {
+    isSystemAudience: true,
+    funnelStage: funnelMap[match[1]],
+    type: match[2],
+    description: match[3],
+  };
+}
+
 export default {
   ESSENTIAL_AUDIENCES,
   ESSENTIAL_LOOKALIKES,
   getAudienceTemplates,
   getRecommendedAudiences,
   getLookalikeConfigs,
-  prepareAudienceRule
+  prepareAudienceRule,
+  // Nomenclatura
+  SYSTEM_PREFIX,
+  generateAudienceName,
+  generateLookalikeName,
+  isSystemAudience,
+  parseAudienceName,
 };
