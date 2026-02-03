@@ -1259,13 +1259,14 @@ export async function POST(request: NextRequest) {
     const hasImages = uploadedImages.length > 0;
     const hasVideos = uploadedVideos.length > 0;
     
+    // ✅ Mensagens corrigidas: campanha aparece IMEDIATAMENTE no Meta Ads
     let message = '';
     if (hasImages && hasVideos) {
-      message = `Campanha criada! ${adIds.length} anúncios de imagem ativos. ${uploadedVideos.length} vídeo(s) em processamento (serão publicados em até 10 minutos).`;
+      message = `Campanha criada! ${adIds.length} anúncios de imagem ativos. ${uploadedVideos.length} vídeo(s) em processamento. Já visível no Meta Ads Manager!`;
     } else if (hasVideos) {
-      message = `Campanha criada! ${uploadedVideos.length} vídeo(s) enfileirados para processamento. Os anúncios serão publicados automaticamente em até 10 minutos.`;
+      message = `Campanha criada! ${uploadedVideos.length} vídeo(s) em processamento. Já visível no Meta Ads Manager - anúncios entrarão em revisão automática.`;
     } else {
-      message = `Campanha criada com ${adIds.length} anúncios!`;
+      message = `Campanha criada com ${adIds.length} anúncios! Já visível no Meta Ads Manager.`;
     }
 
     return NextResponse.json({

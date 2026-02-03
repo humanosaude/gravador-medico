@@ -67,18 +67,46 @@ export default function CampaignSummaryModal({ isOpen, onClose, summary }: Props
           {/* Content */}
           <div className="p-6 space-y-6">
             {/* Status Alert */}
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+            {/* Status Info - Atualizado com informações corretas */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-yellow-200 font-semibold mb-1">
-                    {summary.status === 'PAUSED' ? '⏸️ Campanha Pausada' : '⏰ Processamento em Andamento'}
-                  </p>
-                  <p className="text-yellow-100/80 text-sm">
-                    {summary.status === 'PAUSED' 
-                      ? 'A campanha foi criada como PAUSADA. Ative manualmente no Meta Ads quando estiver pronto para veicular.'
-                      : 'A campanha pode levar até 10 minutos para aparecer no painel do Meta Ads Manager.'}
-                  </p>
+                <AlertCircle className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-blue-200 font-semibold mb-2">📍 Status da Campanha</p>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                      <span className="text-green-300">Campanha visível no Meta Ads Manager</span>
+                    </div>
+                    
+                    {summary.status === 'PAUSED' ? (
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                        <span className="text-yellow-200">
+                          Status: <strong>PAUSADA</strong> - Ative manualmente quando pronto
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                          <span className="text-blue-200">Anúncios em revisão automática (até 24h)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                          <span className="text-purple-200">Veiculação inicia após aprovação</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 pt-3 border-t border-blue-500/20">
+                    <p className="text-blue-100/60 text-xs">
+                      💡 <strong>Dica:</strong> A campanha já está criada e aparece imediatamente no painel. 
+                      O tempo de revisão é para validação de conteúdo pela Meta.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
