@@ -50,15 +50,15 @@ function setSecurityHeaders(response: NextResponse): NextResponse {
     [
       "default-src 'self'",
       // 🔥 Scripts: Mercado Pago SDK, Google Tag Manager, Facebook, Cloudflare
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sdk.mercadopago.com https://*.mlstatic.com https://http2.mlstatic.com https://challenges.cloudflare.com https://www.googletagmanager.com https://connect.facebook.net",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sdk.mercadopago.com https://*.mlstatic.com https://http2.mlstatic.com https://challenges.cloudflare.com https://www.googletagmanager.com https://connect.facebook.net https://*.facebook.net",
       "style-src 'self' 'unsafe-inline' https://*.mlstatic.com",
       "img-src 'self' blob: data: https:",
       "font-src 'self' data: https://*.mlstatic.com",
       "media-src 'self' data:", // ✅ Permite sons base64
-      // 🔥 Connect: Mercado Pago APIs + Bricks
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadopago.com.br https://*.mercadolibre.com https://*.mercadopago.com https://secure-fields.mercadopago.com https://*.mlstatic.com https://events.mercadopago.com https://api.appmax.com.br https://www.google-analytics.com https://www.googletagmanager.com",
-      // 🔥 Frames: Mercado Pago Bricks e Secure Fields
-      "frame-src 'self' https://challenges.cloudflare.com https://www.mercadolibre.com https://*.mercadolibre.com https://*.mercadopago.com https://secure-fields.mercadopago.com https://*.mlstatic.com",
+      // 🔥 Connect: Mercado Pago APIs + Bricks + Meta Pixel/CAPI
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.mercadopago.com https://api.mercadopago.com.br https://*.mercadolibre.com https://*.mercadopago.com https://secure-fields.mercadopago.com https://*.mlstatic.com https://events.mercadopago.com https://api.appmax.com.br https://www.google-analytics.com https://www.googletagmanager.com https://*.facebook.com https://*.facebook.net https://connect.facebook.net https://*.fbcdn.net https://graph.facebook.com https://*.run.app https://*.conversionsapigateway.com https://mpc-prod-*.a.run.app",
+      // 🔥 Frames: Mercado Pago Bricks e Secure Fields + Facebook
+      "frame-src 'self' https://challenges.cloudflare.com https://www.mercadolibre.com https://*.mercadolibre.com https://*.mercadopago.com https://secure-fields.mercadopago.com https://*.mlstatic.com https://*.facebook.com https://www.facebook.com",
       "frame-ancestors 'none'",
       "upgrade-insecure-requests"
     ].join('; ')
