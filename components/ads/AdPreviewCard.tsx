@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { 
   ThumbsUp, 
@@ -10,7 +10,8 @@ import {
   Globe,
   ChevronRight,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  AlertTriangle
 } from 'lucide-react';
 
 // =====================================================
@@ -46,6 +47,43 @@ export default function AdPreviewCard({
   isLoading = false
 }: AdPreviewCardProps) {
   const [showFullText, setShowFullText] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [videoError, setVideoError] = useState<string>('');
+  
+  // ✅ Fazer fetch do vídeo e criar blob URL local para evitar CORS
+  useEffect(() => {
+    if (preview.mediaType === 'video' && preview.mediaUrl) {
+      setVideoLoading(true);
+      setVideoError('');
+      
+      fetch(preview.mediaUrl, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit'
+      })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        setVideoUrl(blobUrl);
+        setVideoLoading(false);
+        console.log('✅ Vídeo carregado com sucesso (blob URL)');
+      })
+      .catch(err => {
+        console.error('❌ Erro ao carregar vídeo:', err);
+        setVideoError(err.message);
+        setVideoLoading(false);
+      });
+      
+      // Cleanup
+      return () => {
+        if (videoUrl) URL.revokeObjectURL(videoUrl);
+      };
+    }
+  }, [preview.mediaUrl, preview.mediaType]);
   
   // Truncar texto longo
   const truncatedText = preview.primaryText.length > 125
@@ -58,20 +96,40 @@ export default function AdPreviewCard({
         {/* Background Media */}
         <div className="absolute inset-0">
           {preview.mediaType === 'video' ? (
-            <video 
-              src={preview.mediaUrl} 
-              className="w-full h-full object-cover"
-              muted
-              loop
-              autoPlay
-              playsInline
-            />
+            <>
+              {videoLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+                </div>
+              )}
+              {videoError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4">
+                  <AlertTriangle className="w-12 h-12 mb-4 text-red-500" />
+                  <p className="text-sm text-center">Erro ao carregar vídeo</p>
+                  <p className="text-xs text-gray-400 mt-2">{videoError}</p>
+                </div>
+              )}
+              {videoUrl && !videoError && (
+                <video 
+                  key={videoUrl}
+                  src={videoUrl} 
+                  className="w-full h-full object-cover"
+                  muted
+                  loop
+                  autoPlay
+                  playsInline
+                  onLoadedData={() => setVideoLoading(false)}
+                  onError={() => setVideoError('Formato incompatível')}
+                />
+              )}
+            </>
           ) : (
             <Image
               src={preview.mediaUrl}
               alt="Ad Preview"
               fill
               className="object-cover"
+              unoptimized
             />
           )}
           {/* Gradient overlay */}
@@ -151,20 +209,39 @@ export default function AdPreviewCard({
       {/* Media */}
       <div className="relative aspect-square bg-gray-100">
         {preview.mediaType === 'video' ? (
-          <video 
-            src={preview.mediaUrl} 
-            className="w-full h-full object-cover"
-            muted
-            loop
-            autoPlay
-            playsInline
-          />
+          <>
+            {videoLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent"></div>
+              </div>
+            )}
+            {videoError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4">
+                <AlertTriangle className="w-12 h-12 mb-4 text-red-500" />
+                <p className="text-sm text-center">Erro ao carregar vídeo</p>
+                <p className="text-xs text-gray-400 mt-2">{videoError}</p>
+              </div>
+            )}
+            {videoUrl && !videoError && (
+              <video 
+                key={videoUrl}
+                src={videoUrl} 
+                className="w-full h-full object-cover"
+                controls
+                playsInline
+                preload="metadata"
+                onLoadedData={() => setVideoLoading(false)}
+                onError={() => setVideoError('Formato incompatível')}
+              />
+            )}
+          </>
         ) : (
           <Image
             src={preview.mediaUrl}
             alt="Ad Preview"
             fill
             className="object-cover"
+            unoptimized
           />
         )}
       </div>
