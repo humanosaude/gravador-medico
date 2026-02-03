@@ -129,7 +129,7 @@ export async function GET() {
       'lookalike_spec',
       'operation_status',
     ].join(','));
-    url.searchParams.set('limit', '100');
+    url.searchParams.set('limit', '500'); // Aumentado para pegar todos os públicos
 
     console.log('[Meta Audiences] Buscando públicos da conta:', adAccountId);
 
