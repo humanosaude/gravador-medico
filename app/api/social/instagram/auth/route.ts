@@ -32,12 +32,12 @@ export async function GET() {
       path: '/',
     });
 
-    // Determinar URL de callback baseado no ambiente
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
-                    'http://localhost:3000';
+    // Determinar URL de callback - SEMPRE usar URL de produção
+    // O Facebook não aceita localhost, então usamos a URL de produção
+    // O callback em produção salva no mesmo banco Supabase
+    const PRODUCTION_URL = 'https://www.gravadormedico.com.br';
     
-    const redirectUri = `${baseUrl}/api/social/instagram/callback`;
+    const redirectUri = `${PRODUCTION_URL}/api/social/instagram/callback`;
 
     // Gerar URL de autenticação
     const authUrl = getOAuthLoginUrl(redirectUri, state);
