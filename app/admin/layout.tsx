@@ -40,7 +40,8 @@ import {
   Brain,
   Instagram,
   Calendar,
-  ImageIcon
+  ImageIcon,
+  Target
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { WhatsAppNotificationProvider } from '@/components/WhatsAppNotificationProvider'
@@ -321,6 +322,15 @@ const menuItems = [
     label: 'Analytics', 
     href: '/admin/analytics',
     badge: 'GA4',
+    highlight: true
+  },
+
+  // 🎯 COCKPIT DE CAMPANHAS (Novo dashboard profissional)
+  { 
+    icon: Target, 
+    label: 'Cockpit', 
+    href: '/admin/cockpit',
+    badge: 'PRO',
     highlight: true
   },
   
