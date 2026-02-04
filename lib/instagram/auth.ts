@@ -65,8 +65,8 @@ export interface TokenDebugInfo {
 // CONFIGURAÇÕES
 // =====================================================
 
-const FACEBOOK_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID!;
-const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
+const FACEBOOK_APP_ID = (process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '').trim().replace(/"/g, '');
+const FACEBOOK_APP_SECRET = (process.env.FACEBOOK_APP_SECRET || '').trim().replace(/"/g, '');
 const GRAPH_API_VERSION = 'v18.0';
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
