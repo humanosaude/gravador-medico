@@ -18,9 +18,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization para evitar erro durante build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 // =====================================================
 // TIPOS
@@ -154,7 +161,7 @@ FORMATO (JSON):
 Responda APENAS com o JSON.`;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision
       messages: [
         { role: 'system', content: systemPrompt },
@@ -332,7 +339,7 @@ Responda APENAS com o JSON.`;
       // Não adiciona imagem - GPT Vision não aceita MP4
     }
     
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -507,7 +514,7 @@ export async function analyzeWithProfessionalPrompt(
   console.log('🎨 [IA Layer 2] Gerando copy com prompt profissional...');
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2', // Modelo mais recente (Dezembro 2025) - Suporta Vision + JSON
       messages: [
         {

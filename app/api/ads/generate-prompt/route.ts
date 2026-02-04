@@ -18,9 +18,16 @@ import {
 // A IA já conhece TUDO sobre o produto Gravador Médico.
 // =====================================================
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization para evitar erro durante build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 // Tipos para ambos os modos (legado e novo)
 interface LegacyRequest {
@@ -73,7 +80,7 @@ export async function POST(request: Request) {
       const metaPrompt = generateMetaPrompt(objective_type);
 
       // Chamar GPT-5.2 para gerar as variações de copy
-      const completion = await openai.chat.completions.create({
+      const completion = await getOpenAI().chat.completions.create({
         model: 'gpt-5.2',
         messages: [
           {
@@ -191,7 +198,7 @@ Gere um prompt detalhado e profissional que inclua:
 
 O prompt deve ser completo e pronto para ser usado diretamente.`;
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2',
       messages: [
         { 

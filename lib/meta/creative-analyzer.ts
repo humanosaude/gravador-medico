@@ -18,9 +18,16 @@ import { GRAVADOR_MEDICO_KNOWLEDGE, CAMPAIGN_OBJECTIVES, ObjectiveType } from '@
 // Modelo mais recente da OpenAI (Fevereiro 2026)
 const OPENAI_MODEL = 'gpt-5.2';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization para evitar erro durante build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 export type CreativeFormat = 'IMAGE' | 'VIDEO' | 'CAROUSEL';
 
@@ -206,7 +213,7 @@ Retorne APENAS o JSON válido, sem markdown.`;
   try {
     console.log(`🎨 [Creative Analyzer] Analisando criativo: ${format} (usando ${OPENAI_MODEL})`);
     
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
         {
@@ -482,7 +489,7 @@ GERE AGORA. Retorne APENAS o JSON válido.`;
   try {
     console.log(`✍️ [Copy Generator] Gerando copies para objetivo: ${objectiveType} (usando ${OPENAI_MODEL})`);
     
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
         {

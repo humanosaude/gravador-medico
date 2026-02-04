@@ -11,9 +11,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { verifyToken } from '@/lib/auth';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization para evitar erro durante build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 const OPENAI_MODEL = 'gpt-5.2';
 
@@ -128,7 +135,7 @@ Refine a copy aplicando as instruções do usuário MAS mantendo TODAS as regras
 
 Refine AGORA. Retorne APENAS JSON válido.`;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
         {

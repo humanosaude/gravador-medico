@@ -21,9 +21,16 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Lazy initialization para evitar erro durante build
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 // Cache do status do FFmpeg
 let ffmpegChecked = false;
@@ -165,7 +172,7 @@ export async function transcribeAudioWithWhisper(
       type: 'audio/mpeg'
     });
     
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await getOpenAI().audio.transcriptions.create({
       file: audioFile,
       model: 'whisper-1',
       language: 'pt',
@@ -327,7 +334,7 @@ Resumo executivo (2-3 frases)
 `.trim();
     
     // Enviar para GPT-5.2 Vision
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2',
       messages: [
         {
@@ -437,7 +444,7 @@ Como não consigo ver o conteúdo do vídeo diretamente, forneça:
 }
 `.trim();
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2',
       messages: [
         {
@@ -641,7 +648,7 @@ Analise esta imagem publicitária para anúncios do Meta/Facebook/Instagram.
 }
 `.trim();
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-5.2',
       messages: [
         {

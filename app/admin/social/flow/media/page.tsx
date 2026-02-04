@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -388,7 +388,7 @@ function UploadArea({
 // =====================================================
 
 export default function SocialFlowMediaLibraryPage() {
-  const supabase = createClientComponentClient();
+  
   
   // Estado
   const [loading, setLoading] = useState(true);

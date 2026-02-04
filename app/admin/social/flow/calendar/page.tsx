@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -388,7 +388,7 @@ function ListView({
 // =====================================================
 
 export default function SocialFlowCalendarPage() {
-  const supabase = createClientComponentClient();
+  
   
   // Estado
   const [loading, setLoading] = useState(true);
