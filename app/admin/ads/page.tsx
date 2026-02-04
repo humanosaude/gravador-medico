@@ -9,9 +9,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   DollarSign, MousePointerClick, Eye, Users, TrendingUp, TrendingDown, AlertCircle, 
   RefreshCw, Megaphone, Target, BarChart3, Zap, Filter, ArrowUpDown,
-  PlayCircle, ExternalLink, ShoppingCart, Facebook, Layers, Image, Info
+  PlayCircle, ExternalLink, ShoppingCart, Facebook, Layers, Image, Info, Receipt
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Constantes para cálculos financeiros
+const MP_PIX_FEE_PERCENT = 0.70; // Taxa MP: 0,70%
+const MP_PIX_FEE_FIXED = 0.25; // R$ 0,25 por transação
+const TAX_RATE_PERCENT = 12.5; // Imposto reforma tributária: 12,5%
+
+// Função para calcular lucro líquido (após taxas MP + imposto)
+function calculateNetProfit(revenue: number, salesCount: number) {
+  // Taxa MP: 0,70% + R$ 0,25 por transação
+  const mpFeePercent = revenue * (MP_PIX_FEE_PERCENT / 100);
+  const mpFeeFixed = salesCount * MP_PIX_FEE_FIXED;
+  const totalMpFee = mpFeePercent + mpFeeFixed;
+  const afterMpFees = revenue - totalMpFee;
+  
+  // Imposto: 12,5%
+  const taxAmount = afterMpFees * (TAX_RATE_PERCENT / 100);
+  const netProfit = afterMpFees - taxAmount;
+  
+  return {
+    grossRevenue: revenue,
+    mpFees: totalMpFee,
+    afterMpFees,
+    taxAmount,
+    netProfit
+  };
+}
 
 // Interface para dados de vendas do Supabase
 interface SalesData {
@@ -741,9 +767,16 @@ export default function AdsPage() {
     },
   ];
 
-  // ROAS Real calculado com vendas reais
-  const realRoas = displayMetrics?.totalSpend && realSales?.approvedValue 
-    ? (realSales.approvedValue / displayMetrics.totalSpend) 
+  // Calcular lucro líquido das vendas reais (após taxas MP + imposto 12,5%)
+  const financials = useMemo(() => {
+    const revenue = realSales?.approvedValue || 0;
+    const salesCount = realSales?.approvedSales || 0;
+    return calculateNetProfit(revenue, salesCount);
+  }, [realSales]);
+
+  // ROAS Real calculado com LUCRO LÍQUIDO (após taxas MP + imposto)
+  const realRoas = displayMetrics?.totalSpend && displayMetrics.totalSpend > 0
+    ? (financials.netProfit / displayMetrics.totalSpend) 
     : 0;
 
   // CPA Real
@@ -751,9 +784,9 @@ export default function AdsPage() {
     ? (displayMetrics.totalSpend / realSales.approvedSales) 
     : 0;
 
-  // ROI Real = ((Receita - Investimento) / Investimento) * 100
-  const realROI = displayMetrics?.totalSpend && displayMetrics.totalSpend > 0 && realSales?.approvedValue
-    ? ((realSales.approvedValue - displayMetrics.totalSpend) / displayMetrics.totalSpend) * 100
+  // ROI Real = ((Lucro Líquido - Investimento) / Investimento) * 100
+  const realROI = displayMetrics?.totalSpend && displayMetrics.totalSpend > 0
+    ? ((financials.netProfit - displayMetrics.totalSpend) / displayMetrics.totalSpend) * 100
     : 0;
 
   // ROI do dia (gasto hoje vs vendas hoje)
@@ -1050,7 +1083,7 @@ export default function AdsPage() {
         </div>
 
         {/* ROI do Período + Métricas principais */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-4">
           {/* ROI do Período - Card grande */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -1099,7 +1132,7 @@ export default function AdsPage() {
           >
             <div className="flex items-center gap-2 mb-2">
               <DollarSign className="h-4 w-4 text-green-400" />
-              <span className="text-sm font-medium text-green-300">Receita Real</span>
+              <span className="text-sm font-medium text-green-300">Receita Bruta</span>
             </div>
             <div className="text-2xl font-bold text-white">
               {loading ? <Skeleton className="h-7 w-24 bg-white/10" /> : formatCurrency(realSales?.approvedValue || 0)}
@@ -1122,10 +1155,27 @@ export default function AdsPage() {
             </div>
           </motion.div>
 
-          {/* Lucro Líquido (Receita - Investimento) */}
+          {/* Imposto da Reforma Tributária */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.43 }}
+            className="col-span-1 bg-gradient-to-br from-orange-700/40 to-amber-800/60 backdrop-blur-xl rounded-2xl border border-orange-600/30 p-5"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Receipt className="h-4 w-4 text-orange-400" />
+              <span className="text-sm font-medium text-orange-300">Imposto 12,5%</span>
+            </div>
+            <div className="text-2xl font-bold text-orange-400">
+              {loading ? <Skeleton className="h-7 w-24 bg-white/10" /> : `-${formatCurrency(financials.taxAmount)}`}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">Reforma Tributária</p>
+          </motion.div>
+
+          {/* Lucro Líquido (após taxas MP + imposto) */}
           {(() => {
-            const lucro = (realSales?.approvedValue || 0) - (displayMetrics?.totalSpend || 0);
-            const isPositive = lucro >= 0;
+            const lucroLiquido = financials.netProfit - (displayMetrics?.totalSpend || 0);
+            const isPositive = lucroLiquido >= 0;
             return (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -1146,16 +1196,17 @@ export default function AdsPage() {
                       <TrendingDown className="h-4 w-4 text-red-400" />
                     )}
                     <span className={`text-sm font-medium ${isPositive ? 'text-emerald-300' : 'text-red-300'}`}>
-                      Lucro
+                      Lucro Real
                     </span>
                   </div>
                   <div className={`text-2xl font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                     {loading ? (
                       <Skeleton className="h-7 w-24 bg-white/10" />
                     ) : (
-                      `${isPositive ? '+' : ''}${formatCurrency(lucro)}`
+                      `${isPositive ? '+' : ''}${formatCurrency(lucroLiquido)}`
                     )}
                   </div>
+                  <p className="text-[10px] text-gray-500 mt-1">Após taxas + imposto - ads</p>
                 </div>
               </motion.div>
             );

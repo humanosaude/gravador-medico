@@ -4,6 +4,45 @@ import { requireAdmin } from '@/lib/auth-server'
 
 export const runtime = 'nodejs'
 
+// Emails e nomes de teste para excluir das vendas
+const TEST_EMAILS = [
+  'helcio',
+  'gabriel',
+  'arruda',
+  'cardoso',
+  'teste',
+  'test',
+  'admin'
+]
+
+const TEST_NAMES = [
+  'helcio',
+  'gabriel arruda',
+  'arruda cardoso',
+  'cliente mp',
+  'cliente mercadopago',
+  'cliente mercado pago',
+  'teste',
+  'test'
+]
+
+function isTestSale(sale: any): boolean {
+  const email = (sale.customer_email || '').toLowerCase()
+  const name = (sale.customer_name || '').toLowerCase()
+  
+  // Verificar se é email de teste
+  for (const testEmail of TEST_EMAILS) {
+    if (email.includes(testEmail)) return true
+  }
+  
+  // Verificar se é nome de teste
+  for (const testName of TEST_NAMES) {
+    if (name.includes(testName)) return true
+  }
+  
+  return false
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
   if (!auth.user) {
@@ -40,8 +79,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: salesError.message }, { status: 500 })
     }
 
-    const sales = (salesData || []).map((row) => ({
+    // Filtrar vendas de teste (Helcio, Gabriel, etc.)
+    const filteredSalesData = (salesData || []).filter(sale => !isTestSale(sale))
+
+    const sales = filteredSalesData.map((row) => ({
       ...row,
+      // Mapear order_status para status (compatibilidade com front-end)
+      status: row.order_status || row.status || 'pending',
       source: 'sale'
     }))
 
@@ -79,11 +123,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: attemptError.message }, { status: 500 })
     }
 
+    // Filtrar tentativas de teste também
+    const filteredAttemptData = (attemptData || []).filter(attempt => !isTestSale(attempt))
+
     const salesOrderIds = new Set(
-      (salesData || []).map((row) => row.appmax_order_id).filter(Boolean)
+      filteredSalesData.map((row) => row.appmax_order_id).filter(Boolean)
     )
 
-    const attempts = (attemptData || [])
+    const attempts = filteredAttemptData
       .filter((row) => !salesOrderIds.has(row.appmax_order_id))
       .map((row) => ({
         id: row.id,

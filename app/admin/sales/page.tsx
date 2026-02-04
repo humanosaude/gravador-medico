@@ -71,7 +71,7 @@ export default function SalesPage() {
   
   // Filtros de período (igual à Visão Geral)
   const [filterType, setFilterType] = useState<'quick' | 'custom'>('quick')
-  const [quickDays, setQuickDays] = useState(0) // HOJE como padrão
+  const [quickDays, setQuickDays] = useState(30) // Últimos 30 dias como padrão
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
 
@@ -164,13 +164,13 @@ export default function SalesPage() {
       filtered = filtered.filter(sale => {
         switch (statusFilter) {
           case 'paid':
-            return ['paid', 'approved'].includes(sale.status)
+            return ['paid', 'approved', 'active', 'authorized'].includes(sale.status)
           case 'pending':
-            return ['pending', 'processing'].includes(sale.status)
+            return ['pending', 'processing', 'provisioning'].includes(sale.status)
           case 'fraud_analysis':
             return sale.status === 'fraud_analysis'
           case 'failed':
-            return ['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'expired', 'chargeback'].includes(sale.status)
+            return ['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'expired', 'chargeback', 'provisioning_failed'].includes(sale.status)
           case 'refunded':
             return ['refunded', 'reversed'].includes(sale.status)
           default:
@@ -203,7 +203,7 @@ export default function SalesPage() {
     }
 
     // ⚠️ IMPORTANTE: NÃO incluir 'expired' aqui! Já tratado acima com etiqueta cinza
-    if (['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'chargeback'].includes(normalizedStatus)) {
+    if (['canceled', 'cancelado', 'cancelled', 'refused', 'rejected', 'failed', 'denied', 'chargeback', 'provisioning_failed'].includes(normalizedStatus)) {
       return {
         label: failureReason || 'Cancelado',
         className: 'bg-red-500 text-white border-red-600 font-semibold',
@@ -219,11 +219,19 @@ export default function SalesPage() {
       }
     }
     
-    if (['paid', 'approved'].includes(normalizedStatus)) {
+    if (['paid', 'approved', 'active', 'authorized'].includes(normalizedStatus)) {
       return {
         label: 'Pago',
         className: 'bg-green-500/20 text-green-400 border-green-500/30',
         icon: CheckCircle2
+      }
+    }
+    
+    if (['provisioning'].includes(normalizedStatus)) {
+      return {
+        label: 'Provisionando',
+        className: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+        icon: Clock
       }
     }
     

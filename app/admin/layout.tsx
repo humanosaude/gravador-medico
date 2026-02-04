@@ -37,12 +37,49 @@ import {
   CreditCard,
   Megaphone,
   Facebook,
-  Brain
+  Brain,
+  Instagram,
+  Calendar,
+  ImageIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { WhatsAppNotificationProvider } from '@/components/WhatsAppNotificationProvider'
 import { NotificationProvider } from '@/components/NotificationProvider'
 import AIFloatingWidget from '@/components/ai/AIFloatingWidget'
+
+// InstaFlow Menu Items
+const instaflowItems = [
+  { 
+    icon: LayoutDashboard, 
+    label: 'Dashboard', 
+    href: '/admin/social',
+    badge: null
+  },
+  { 
+    icon: Calendar, 
+    label: 'Calendário', 
+    href: '/admin/social/calendar',
+    badge: null
+  },
+  { 
+    icon: ImageIcon, 
+    label: 'Biblioteca', 
+    href: '/admin/social/library',
+    badge: null
+  },
+  { 
+    icon: BarChart3, 
+    label: 'Analytics', 
+    href: '/admin/social/analytics',
+    badge: null
+  },
+  { 
+    icon: Settings, 
+    label: 'Configurações', 
+    href: '/admin/social/settings',
+    badge: null
+  },
+]
 
 const automationItems = [
   { 
@@ -309,6 +346,15 @@ const menuItems = [
     label: 'Configurações', 
     href: '/admin/settings',
     badge: null
+  },
+
+  // 📸 INSTAFLOW (Instagram Automation)
+  { 
+    label: 'InstaFlow', 
+    icon: Instagram,
+    items: instaflowItems,
+    badge: 'IG',
+    highlight: true
   },
   
   // � E-MAILS (Standalone - destaque)

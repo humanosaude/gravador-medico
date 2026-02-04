@@ -1,10 +1,13 @@
 'use client'
 
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, CreditCard, Users, ShoppingBag, Percent } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, CreditCard, Users, ShoppingBag, Percent, Receipt } from 'lucide-react'
 
 // Constantes de taxas do Mercado Pago
 const MP_PIX_FEE_PERCENT = 0.70 // 0,70% do valor
 const MP_PIX_FEE_FIXED = 0.25 // R$ 0,25 fixo por transação
+
+// Imposto da Reforma Tributária (IBS + CBS)
+const TAX_RATE_PERCENT = 12.5 // 12,5% sobre o valor
 
 interface BigNumberProps {
   title: string
@@ -95,7 +98,7 @@ function calculateMPFees(revenue: number, pixSalesCount: number) {
   const fixedFee = pixSalesCount * MP_PIX_FEE_FIXED
   // Total de taxas
   const totalFees = percentFee + fixedFee
-  // Valor líquido
+  // Valor líquido (após taxas MP)
   const netRevenue = revenue - totalFees
   
   return {
@@ -103,6 +106,19 @@ function calculateMPFees(revenue: number, pixSalesCount: number) {
     fixedFee,
     totalFees,
     netRevenue
+  }
+}
+
+// Função para calcular imposto da reforma tributária
+function calculateTaxes(netRevenueAfterFees: number) {
+  // Imposto: 12,5% sobre o valor
+  const taxAmount = netRevenueAfterFees * (TAX_RATE_PERCENT / 100)
+  // Lucro líquido (após taxas MP + imposto)
+  const netProfit = netRevenueAfterFees - taxAmount
+  
+  return {
+    taxAmount,
+    netProfit
   }
 }
 
@@ -126,6 +142,9 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
   // Usa paid_sales como quantidade de transações PIX (assumindo que todas vendas pagas são PIX)
   const pixSalesCount = metrics?.pix_sales ?? metrics?.paid_sales ?? metrics?.sales ?? 0
   const mpFees = calculateMPFees(metrics?.revenue ?? 0, pixSalesCount)
+  
+  // Calcular imposto da reforma tributária (sobre o valor após taxas MP)
+  const taxes = calculateTaxes(mpFees.netRevenue)
 
   // Previne erro se metrics estiver null
   if (!metrics) {
@@ -142,10 +161,10 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
 
   return (
     <div className="space-y-4">
-      {/* Faturamento Completo com Taxas MP */}
+      {/* Faturamento Completo com Taxas MP e Imposto */}
       {metrics.revenue > 0 && (
         <div className="bg-gradient-to-br from-brand-500/10 to-brand-600/5 rounded-xl border border-brand-500/20 p-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
             <div>
               <div className="text-xs font-medium text-gray-400 mb-1">Faturamento Bruto</div>
               <div className="text-xl font-bold text-white">{formatCurrency(metrics.gross_revenue || metrics.revenue || 0)}</div>
@@ -163,9 +182,18 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
               <div className="text-xs font-medium text-gray-400 mb-1">Total Taxas MP</div>
               <div className="text-xl font-bold text-orange-500">-{formatCurrency(mpFees.totalFees)}</div>
             </div>
-            <div className="bg-brand-500/10 rounded-lg p-2">
-              <div className="text-xs font-medium text-brand-300 mb-1">💰 Faturamento Líquido</div>
-              <div className="text-xl font-bold text-brand-400">{formatCurrency(mpFees.netRevenue)}</div>
+            <div>
+              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-center gap-1">
+                <Receipt className="w-3 h-3" />
+                Imposto (12,5%)
+              </div>
+              <div className="text-xl font-bold text-red-500">-{formatCurrency(taxes.taxAmount)}</div>
+              <div className="text-[10px] text-gray-500">Reforma Tributária</div>
+            </div>
+            <div className="bg-green-500/10 rounded-lg p-2 border border-green-500/20">
+              <div className="text-xs font-medium text-green-300 mb-1">💰 Lucro Líquido</div>
+              <div className="text-xl font-bold text-green-400">{formatCurrency(taxes.netProfit)}</div>
+              <div className="text-[10px] text-gray-500">Após MP + Imposto</div>
             </div>
           </div>
         </div>
@@ -202,10 +230,10 @@ export default function BigNumbers({ metrics, loading, periodLabel }: BigNumbers
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <BigNumberCard
-          title="💰 Líquido (após taxas MP)"
-          value={formatCurrency(mpFees.netRevenue || 0)}
+          title="💰 Lucro Líquido"
+          value={formatCurrency(taxes.netProfit || 0)}
           delta={metrics.revenue_change || 0}
-          deltaText="vs período anterior"
+          deltaText="após taxas + imposto"
           icon={<DollarSign className="w-5 h-5" />}
           loading={loading}
         />

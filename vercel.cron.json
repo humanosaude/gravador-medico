@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/instaflow-publish",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/instaflow-analytics",
+      "schedule": "0 6,18 * * *"
+    },
+    {
+      "path": "/api/cron/instaflow-best-times",
+      "schedule": "0 3 * * 0"
+    },
+    {
+      "path": "/api/cron/instaflow-reports",
+      "schedule": "0 9 * * 1"
+    }
+  ]
+}

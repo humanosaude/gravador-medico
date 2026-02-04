@@ -12,9 +12,35 @@ import { SyncAppmaxButton } from '@/components/dashboard/SyncAppmaxButton'
 import { SyncMercadoPagoButton } from '@/components/dashboard/SyncMercadoPagoButton'
 import GatewayStatsCard from '@/components/dashboard/GatewayStatsCard'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { RefreshCw, Download, MousePointerClick, Link2, Zap, TrendingUp, ArrowRight, Activity, BarChart3, Facebook, DollarSign, Eye, Target, PlayCircle, ExternalLink } from 'lucide-react'
+import { RefreshCw, Download, MousePointerClick, Link2, Zap, TrendingUp, ArrowRight, Activity, BarChart3, Facebook, DollarSign, Eye, Target, PlayCircle, ExternalLink, Receipt } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { calculateAdsMetrics, AdsMetrics } from '@/lib/meta-marketing'
+
+// Constantes para cálculos financeiros
+const MP_PIX_FEE_PERCENT = 0.70 // Taxa MP: 0,70%
+const MP_PIX_FEE_FIXED = 0.25 // R$ 0,25 por transação
+const TAX_RATE_PERCENT = 12.5 // Imposto reforma tributária: 12,5%
+
+// Função para calcular lucro líquido (após taxas MP + imposto)
+function calculateNetProfit(revenue: number, salesCount: number) {
+  // Taxa MP: 0,70% + R$ 0,25 por transação
+  const mpFeePercent = revenue * (MP_PIX_FEE_PERCENT / 100)
+  const mpFeeFixed = salesCount * MP_PIX_FEE_FIXED
+  const totalMpFee = mpFeePercent + mpFeeFixed
+  const afterMpFees = revenue - totalMpFee
+  
+  // Imposto: 12,5%
+  const taxAmount = afterMpFees * (TAX_RATE_PERCENT / 100)
+  const netProfit = afterMpFees - taxAmount
+  
+  return {
+    grossRevenue: revenue,
+    mpFees: totalMpFee,
+    afterMpFees,
+    taxAmount,
+    netProfit
+  }
+}
 
 // Tipos para Analytics
 interface TrafficDataItem {
@@ -240,9 +266,16 @@ export default function AdminDashboard() {
         ? 'ontem'
         : `últimos ${quickDays} dias`
 
+  // Calcular lucro líquido (após taxas MP + imposto 12,5%)
+  const salesCount = metrics?.paid_sales ?? metrics?.sales ?? 0
+  const financials = calculateNetProfit(metrics?.revenue || 0, salesCount)
+  
   const roiInvested = fbMetrics?.totalSpend || 0
-  const roiReturn = metrics?.revenue || 0
+  const roiReturn = financials.netProfit // Usar lucro líquido para ROI real
   const roiDelta = roiReturn - roiInvested
+  
+  // ROAS real = Lucro Líquido / Investimento em Ads
+  const realRoas = roiInvested > 0 ? roiReturn / roiInvested : 0
 
   const exportDashboard = () => {
     if (!metrics) return
@@ -525,14 +558,14 @@ Relatório gerado automaticamente pelo Gravador Médico
 
       {/* ROI Card Destacado + META Ads KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        {/* ROI Card Grande */}
+        {/* ROI Card Grande - Usando Lucro Líquido */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.15 }}
           className={`md:col-span-2 relative overflow-hidden rounded-2xl p-6 ${
-            metrics && fbMetrics?.totalSpend && (metrics.revenue || 0) > 0
-              ? (((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0
+            roiInvested > 0 && roiReturn > 0
+              ? roiDelta >= 0
                 ? 'bg-gradient-to-br from-green-600/30 to-emerald-700/30 border-2 border-green-500/40'
                 : 'bg-gradient-to-br from-red-600/30 to-rose-700/30 border-2 border-red-500/40'
               : 'bg-gradient-to-br from-gray-700/40 to-gray-800/60 border border-gray-600/30'
@@ -543,51 +576,54 @@ Relatório gerado automaticamente pelo Gravador Médico
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className={`p-2 rounded-xl ${
-                  metrics && fbMetrics?.totalSpend && (metrics.revenue || 0) > 0
-                    ? (((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0
-                      ? 'bg-green-500/30'
-                      : 'bg-red-500/30'
+                  roiInvested > 0 && roiReturn > 0
+                    ? roiDelta >= 0 ? 'bg-green-500/30' : 'bg-red-500/30'
                     : 'bg-gray-500/30'
                 }`}>
                   <TrendingUp className={`h-5 w-5 ${
-                    metrics && fbMetrics?.totalSpend && (metrics.revenue || 0) > 0
-                      ? (((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0
-                        ? 'text-green-400'
-                        : 'text-red-400'
+                    roiInvested > 0 && roiReturn > 0
+                      ? roiDelta >= 0 ? 'text-green-400' : 'text-red-400'
                       : 'text-gray-400'
                   }`} />
                 </div>
-                <span className={`text-lg font-semibold ${
-                  metrics && fbMetrics?.totalSpend && (metrics.revenue || 0) > 0
-                    ? (((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0
-                      ? 'text-green-300'
-                      : 'text-red-300'
-                    : 'text-gray-300'
-                }`}>
-                  ROI ({periodLabel})
-                </span>
+                <div>
+                  <span className={`text-lg font-semibold ${
+                    roiInvested > 0 && roiReturn > 0
+                      ? roiDelta >= 0 ? 'text-green-300' : 'text-red-300'
+                      : 'text-gray-300'
+                  }`}>
+                    ROI Real ({periodLabel})
+                  </span>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                    <Receipt className="w-3 h-3" />
+                    Após taxas MP + Imposto 12,5%
+                  </div>
+                </div>
               </div>
             </div>
             <div className={`text-4xl font-bold ${
-              metrics && fbMetrics?.totalSpend && (metrics.revenue || 0) > 0
-                ? (((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0
-                  ? 'text-green-400'
-                  : 'text-red-400'
+              roiInvested > 0 && roiReturn > 0
+                ? roiDelta >= 0 ? 'text-green-400' : 'text-red-400'
                 : 'text-gray-400'
             }`}>
               {analyticsLoading || loading ? '...' : (
-                fbMetrics?.totalSpend && fbMetrics.totalSpend > 0 && metrics?.revenue
-                  ? `${(((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100) >= 0 ? '+' : ''}${(((metrics.revenue || 0) - fbMetrics.totalSpend) / fbMetrics.totalSpend * 100).toFixed(1)}%`
+                roiInvested > 0 && financials.netProfit > 0
+                  ? `${roiDelta >= 0 ? '+' : ''}${((roiDelta / roiInvested) * 100).toFixed(1)}%`
                   : '0%'
               )}
             </div>
-            <div className="flex items-center gap-4 mt-3 text-sm">
+            <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
               <span className="text-gray-400">
-                Investido: <span className="text-white font-medium">{formatCurrencyCompact(fbMetrics?.totalSpend || 0)}</span>
+                Investido: <span className="text-white font-medium">{formatCurrencyCompact(roiInvested)}</span>
               </span>
               <span className="text-gray-400">
-                Receita: <span className={`font-medium ${metrics?.revenue ? 'text-green-400' : 'text-gray-500'}`}>
-                  {formatCurrencyCompact(metrics?.revenue || 0)}
+                Lucro Líquido: <span className={`font-medium ${roiReturn > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                  {formatCurrencyCompact(roiReturn)}
+                </span>
+              </span>
+              <span className="text-gray-400">
+                ROAS Real: <span className={`font-medium ${realRoas >= 1 ? 'text-green-400' : 'text-amber-400'}`}>
+                  {realRoas.toFixed(2)}x
                 </span>
               </span>
             </div>
@@ -653,46 +689,39 @@ Relatório gerado automaticamente pelo Gravador Médico
         </motion.div>
       </div>
 
-      {/* ROAS Inteligente Card */}
-      {smartMetrics && (
+      {/* ROAS Real Card - Com Imposto */}
+      {roiInvested > 0 && financials.netProfit > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className={`rounded-2xl p-6 border-2 ${
-            smartMetrics.roas >= 1 
+            realRoas >= 1 
               ? 'bg-gradient-to-br from-green-600/20 to-emerald-700/20 border-green-500/40' 
               : 'bg-gradient-to-br from-amber-600/20 to-orange-700/20 border-amber-500/40'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Target className={`h-5 w-5 ${smartMetrics.roas >= 1 ? 'text-green-400' : 'text-amber-400'}`} />
-                <span className="text-sm font-medium text-gray-300">ROAS Inteligente ({periodLabel})</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  smartMetrics.revenueSource === 'meta_api' 
-                    ? 'bg-blue-500/30 text-blue-300' 
-                    : smartMetrics.revenueSource === 'database_attributed'
-                    ? 'bg-purple-500/30 text-purple-300'
-                    : 'bg-gray-500/30 text-gray-300'
-                }`}>
-                  {smartMetrics.revenueSource === 'meta_api' ? '📊 Meta API' : 
-                   smartMetrics.revenueSource === 'database_attributed' ? '🎯 Atribuído' : '💾 Banco'}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Target className={`h-5 w-5 ${realRoas >= 1 ? 'text-green-400' : 'text-amber-400'}`} />
+                <span className="text-sm font-medium text-gray-300">ROAS Real ({periodLabel})</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/30 text-orange-300">
+                  🧾 Com Imposto 12,5%
                 </span>
               </div>
-              <p className={`text-4xl font-bold ${smartMetrics.roas >= 1 ? 'text-green-400' : 'text-amber-400'}`}>
-                {smartMetrics.roas.toFixed(2)}x
+              <p className={`text-4xl font-bold ${realRoas >= 1 ? 'text-green-400' : 'text-amber-400'}`}>
+                {realRoas.toFixed(2)}x
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                {smartMetrics.purchases} compras = R$ {smartMetrics.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {salesCount} vendas = R$ {financials.netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (líquido)
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-400">Para cada R$ 1 investido</p>
-              <p className={`text-2xl font-bold ${smartMetrics.roas >= 1 ? 'text-green-300' : 'text-amber-300'}`}>
-                R$ {smartMetrics.roas.toFixed(2)}
+              <p className={`text-2xl font-bold ${realRoas >= 1 ? 'text-green-300' : 'text-amber-300'}`}>
+                R$ {realRoas.toFixed(2)}
               </p>
-              {smartMetrics.roas < 1 && (
+              {realRoas < 1 && (
                 <p className="text-xs text-amber-400 mt-1">⚠️ ROAS abaixo de 1x</p>
               )}
             </div>
@@ -715,15 +744,15 @@ Relatório gerado automaticamente pelo Gravador Médico
         </div>
       )}
 
-      {/* ROI Big Numbers */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+      {/* ROI Big Numbers - Com Detalhamento de Impostos */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
           className="bg-gradient-to-br from-emerald-500/20 to-green-600/20 rounded-2xl border border-emerald-500/30 p-5"
         >
-          <p className="text-xs text-emerald-300 mb-1">Investido ({periodLabel})</p>
+          <p className="text-xs text-emerald-300 mb-1">Investido em Ads ({periodLabel})</p>
           <p className="text-3xl font-bold text-white">
             {analyticsLoading ? '...' : formatCurrencyCompact(roiInvested)}
           </p>
@@ -731,13 +760,29 @@ Relatório gerado automaticamente pelo Gravador Médico
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38 }}
+          className="bg-gradient-to-br from-orange-500/20 to-amber-600/20 rounded-2xl border border-orange-500/30 p-5"
+        >
+          <div className="flex items-center gap-1 text-xs text-orange-300 mb-1">
+            <Receipt className="w-3 h-3" />
+            Imposto 12,5% ({periodLabel})
+          </div>
+          <p className="text-3xl font-bold text-orange-400">
+            {loading ? '...' : `-${formatCurrencyCompact(financials.taxAmount)}`}
+          </p>
+          <p className="text-[10px] text-gray-500 mt-1">Reforma Tributária (IBS+CBS)</p>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           className="bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-2xl border border-blue-500/30 p-5"
         >
-          <p className="text-xs text-blue-300 mb-1">Retorno Real ({periodLabel})</p>
+          <p className="text-xs text-blue-300 mb-1">Lucro Líquido ({periodLabel})</p>
           <p className="text-3xl font-bold text-white">
             {loading ? '...' : formatCurrencyCompact(roiReturn)}
           </p>
+          <p className="text-[10px] text-gray-500 mt-1">Após taxas MP + Imposto</p>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -749,10 +794,11 @@ Relatório gerado automaticamente pelo Gravador Médico
               : 'bg-gradient-to-br from-red-600/20 to-rose-700/20 border-red-500/30'
           }`}
         >
-          <p className="text-xs text-gray-300 mb-1">Diferença Real ({periodLabel})</p>
+          <p className="text-xs text-gray-300 mb-1">Lucro Real ({periodLabel})</p>
           <p className={`text-3xl font-bold ${roiDelta >= 0 ? 'text-green-300' : 'text-red-300'}`}>
             {loading ? '...' : `${roiDelta >= 0 ? '+' : ''}${formatCurrencyCompact(roiDelta)}`}
           </p>
+          <p className="text-[10px] text-gray-500 mt-1">Lucro - Investimento Ads</p>
         </motion.div>
       </div>
 
