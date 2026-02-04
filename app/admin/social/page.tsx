@@ -87,11 +87,11 @@ export default function InstaFlowDashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 via-purple-500 to-orange-400 flex items-center justify-center shadow-lg shadow-purple-500/30">
-              <Instagram className="w-7 h-7 text-white" />
+              <Zap className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">InstaFlow</h1>
-              <p className="text-gray-400 text-sm">Gerencie seu Instagram com Inteligência Artificial</p>
+              <h1 className="text-3xl font-bold text-white">Social Flow</h1>
+              <p className="text-gray-400 text-sm">Gerencie suas redes sociais com Inteligência Artificial</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -318,10 +318,10 @@ export default function InstaFlowDashboard() {
               </div>
               
               <h2 className="text-3xl font-bold text-white mb-4">
-                Bem-vindo ao InstaFlow
+                Bem-vindo ao Social Flow
               </h2>
               <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-                Conecte sua conta do Instagram para começar a criar posts incríveis com ajuda da Inteligência Artificial
+                Conecte suas redes sociais para começar a criar posts incríveis com ajuda da Inteligência Artificial
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -355,8 +355,8 @@ export default function InstaFlowDashboard() {
                   size="lg"
                   className="bg-gradient-to-r from-pink-500 via-purple-500 to-orange-400 hover:from-pink-600 hover:via-purple-600 hover:to-orange-500 text-white font-semibold px-8 py-6 text-lg shadow-xl shadow-purple-500/30"
                 >
-                  <Instagram className="w-5 h-5 mr-2" />
-                  Conectar Instagram
+                  <Zap className="w-5 h-5 mr-2" />
+                  Conectar Contas
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
