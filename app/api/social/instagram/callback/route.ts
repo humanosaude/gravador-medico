@@ -24,6 +24,20 @@ export async function GET(request: NextRequest) {
                   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
                   'http://localhost:3000');
 
+  // ============================================
+  // VERIFICAÇÃO DO FACEBOOK (quando clica em "Verificar" no console)
+  // O Facebook faz GET sem parâmetros para verificar se a URL existe
+  // ============================================
+  if (!code && !error && !state) {
+    // Retornar 200 OK para o Facebook validar a URL
+    return new NextResponse('OK', { 
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain',
+      }
+    });
+  }
+
   // Verificar erro do Facebook
   if (error) {
     console.error('[InstaFlow] OAuth error:', error, errorDescription);
