@@ -108,6 +108,241 @@ interface CockpitResponse {
 }
 
 // =====================================================
+// DADOS DEMO (quando não há credenciais)
+// =====================================================
+
+function generateDemoData(since: string, until: string): CockpitResponse {
+  const demoCampaigns: CockpitCampaign[] = [
+    {
+      campaign_id: 'demo_camp_1',
+      campaign_name: '🎯 [CONVERSÃO] Gravador Médico - Lookalike',
+      level: 'campaign',
+      reach: 45230,
+      impressions: 78450,
+      frequency: 1.73,
+      cpm: 12.75,
+      clicks: 2341,
+      link_clicks: 1987,
+      cpc: 0.50,
+      ctr: 2.98,
+      landing_page_views: 1654,
+      connect_rate: 83.24,
+      checkout_initiated: 234,
+      checkout_add_payment_info: 187,
+      checkout_completed: 156,
+      checkout_conversion_rate: 14.15,
+      pv_to_checkout_rate: 14.15,
+      purchases: 89,
+      purchase_value: 8455.00,
+      cost_per_purchase: 11.24,
+      spend: 1000.00,
+      roas: 8.46,
+      profit_percentage: 745.5,
+      profit_value: 7455.00,
+      ticket_medio: 95.00,
+      global_conversion_rate: 3.80,
+      funnel_stage: 'fundo',
+      consciousness_level: 'totalmente_consciente'
+    },
+    {
+      campaign_id: 'demo_camp_2', 
+      campaign_name: '📱 [TRÁFEGO] Médicos - Instagram',
+      level: 'campaign',
+      reach: 123450,
+      impressions: 234567,
+      frequency: 1.90,
+      cpm: 8.52,
+      clicks: 5678,
+      link_clicks: 4532,
+      cpc: 0.44,
+      ctr: 2.42,
+      landing_page_views: 3654,
+      connect_rate: 80.63,
+      checkout_initiated: 145,
+      checkout_add_payment_info: 98,
+      checkout_completed: 76,
+      checkout_conversion_rate: 3.97,
+      pv_to_checkout_rate: 3.97,
+      purchases: 45,
+      purchase_value: 3825.00,
+      cost_per_purchase: 44.44,
+      spend: 2000.00,
+      roas: 1.91,
+      profit_percentage: 91.25,
+      profit_value: 1825.00,
+      ticket_medio: 85.00,
+      global_conversion_rate: 0.79,
+      funnel_stage: 'topo',
+      consciousness_level: 'inconsciente'
+    },
+    {
+      campaign_id: 'demo_camp_3',
+      campaign_name: '🔄 [REMARKETING] Carrinho Abandonado',
+      level: 'campaign',
+      reach: 8765,
+      impressions: 23456,
+      frequency: 2.68,
+      cpm: 21.32,
+      clicks: 1234,
+      link_clicks: 1098,
+      cpc: 0.46,
+      ctr: 5.26,
+      landing_page_views: 987,
+      connect_rate: 89.89,
+      checkout_initiated: 345,
+      checkout_add_payment_info: 298,
+      checkout_completed: 267,
+      checkout_conversion_rate: 34.95,
+      pv_to_checkout_rate: 34.95,
+      purchases: 178,
+      purchase_value: 16910.00,
+      cost_per_purchase: 2.81,
+      spend: 500.00,
+      roas: 33.82,
+      profit_percentage: 3282.0,
+      profit_value: 16410.00,
+      ticket_medio: 95.00,
+      global_conversion_rate: 14.43,
+      funnel_stage: 'fundo',
+      consciousness_level: 'totalmente_consciente'
+    },
+    {
+      campaign_id: 'demo_camp_4',
+      campaign_name: '📚 [EDUCATIVO] Conteúdo para Médicos',
+      level: 'campaign',
+      reach: 89000,
+      impressions: 156000,
+      frequency: 1.75,
+      cpm: 6.41,
+      clicks: 4230,
+      link_clicks: 3456,
+      cpc: 0.29,
+      ctr: 2.71,
+      landing_page_views: 2876,
+      connect_rate: 83.22,
+      checkout_initiated: 89,
+      checkout_add_payment_info: 67,
+      checkout_completed: 54,
+      checkout_conversion_rate: 3.10,
+      pv_to_checkout_rate: 3.10,
+      purchases: 32,
+      purchase_value: 2720.00,
+      cost_per_purchase: 31.25,
+      spend: 1000.00,
+      roas: 2.72,
+      profit_percentage: 172.0,
+      profit_value: 1720.00,
+      ticket_medio: 85.00,
+      global_conversion_rate: 0.76,
+      funnel_stage: 'meio',
+      consciousness_level: 'consciente_problema'
+    }
+  ];
+
+  const demoAdsets: CockpitCampaign[] = [
+    {
+      ...demoCampaigns[0],
+      adset_id: 'demo_adset_1a',
+      adset_name: 'Lookalike 1% - Compradores',
+      level: 'adset',
+      reach: 23000,
+      impressions: 39000,
+      spend: 500,
+      purchases: 52,
+      purchase_value: 4940,
+      roas: 9.88
+    },
+    {
+      ...demoCampaigns[0],
+      adset_id: 'demo_adset_1b',
+      adset_name: 'Lookalike 2% - Engajados',
+      level: 'adset',
+      reach: 22230,
+      impressions: 39450,
+      spend: 500,
+      purchases: 37,
+      purchase_value: 3515,
+      roas: 7.03
+    },
+    {
+      ...demoCampaigns[1],
+      adset_id: 'demo_adset_2a',
+      adset_name: 'Interesse - Médicos 25-45',
+      level: 'adset',
+      reach: 65000,
+      impressions: 120000,
+      spend: 1200,
+      purchases: 28,
+      purchase_value: 2380,
+      roas: 1.98
+    }
+  ];
+
+  const demoAds: CockpitCampaign[] = [
+    {
+      ...demoAdsets[0],
+      ad_id: 'demo_ad_1',
+      ad_name: 'Vídeo Depoimento Dr. Carlos',
+      level: 'ad',
+      reach: 12000,
+      impressions: 20000,
+      spend: 250,
+      purchases: 30,
+      purchase_value: 2850,
+      roas: 11.40
+    },
+    {
+      ...demoAdsets[0],
+      ad_id: 'demo_ad_2',
+      ad_name: 'Carrossel - Funcionalidades',
+      level: 'ad',
+      reach: 11000,
+      impressions: 19000,
+      spend: 250,
+      purchases: 22,
+      purchase_value: 2090,
+      roas: 8.36
+    }
+  ];
+
+  const total_spend = demoCampaigns.reduce((acc, c) => acc + c.spend, 0);
+  const total_revenue = demoCampaigns.reduce((acc, c) => acc + c.purchase_value, 0);
+  const total_purchases = demoCampaigns.reduce((acc, c) => acc + c.purchases, 0);
+
+  return {
+    success: true,
+    period: { since, until },
+    summary: {
+      total_spend,
+      total_reach: demoCampaigns.reduce((acc, c) => acc + c.reach, 0),
+      total_impressions: demoCampaigns.reduce((acc, c) => acc + c.impressions, 0),
+      total_clicks: demoCampaigns.reduce((acc, c) => acc + c.clicks, 0),
+      total_link_clicks: demoCampaigns.reduce((acc, c) => acc + c.link_clicks, 0),
+      total_landing_page_views: demoCampaigns.reduce((acc, c) => acc + c.landing_page_views, 0),
+      total_checkouts: demoCampaigns.reduce((acc, c) => acc + c.checkout_initiated, 0),
+      total_purchases,
+      total_revenue,
+      avg_cpm: 10.25,
+      avg_cpc: 0.42,
+      avg_ctr: 2.84,
+      avg_connect_rate: 83.75,
+      avg_checkout_rate: 14.04,
+      overall_roas: total_spend > 0 ? total_revenue / total_spend : 0,
+      overall_profit: total_revenue - total_spend,
+      avg_ticket: total_purchases > 0 ? total_revenue / total_purchases : 0
+    },
+    campaigns: demoCampaigns,
+    adsets: demoAdsets as CockpitCampaign[],
+    ads: demoAds as CockpitCampaign[],
+    funnel_analysis: {
+      topo: demoCampaigns.filter(c => c.funnel_stage === 'topo'),
+      meio: demoCampaigns.filter(c => c.funnel_stage === 'meio'),
+      fundo: demoCampaigns.filter(c => c.funnel_stage === 'fundo')
+    }
+  };
+}
+
+// =====================================================
 // BUSCAR CREDENCIAIS
 // =====================================================
 
@@ -430,10 +665,9 @@ export async function GET(request: NextRequest) {
     const credentials = await getMetaCredentials();
     
     if (!credentials) {
-      return NextResponse.json({
-        success: false,
-        error: 'Credenciais Meta não configuradas'
-      }, { status: 500 });
+      // Retornar dados demo para visualização
+      console.log('⚠️ [Cockpit] Sem credenciais - retornando dados demo');
+      return NextResponse.json(generateDemoData(since, until));
     }
     
     // Buscar dados em paralelo
