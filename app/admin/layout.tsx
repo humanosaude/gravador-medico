@@ -47,8 +47,8 @@ import { WhatsAppNotificationProvider } from '@/components/WhatsAppNotificationP
 import { NotificationProvider } from '@/components/NotificationProvider'
 import AIFloatingWidget from '@/components/ai/AIFloatingWidget'
 
-// InstaFlow Menu Items
-const instaflowItems = [
+// Social Flow Menu Items
+const socialFlowItems = [
   { 
     icon: LayoutDashboard, 
     label: 'Dashboard', 
@@ -348,12 +348,12 @@ const menuItems = [
     badge: null
   },
 
-  // 📸 INSTAFLOW (Instagram Automation)
+  // � SOCIAL FLOW (Multi-Network Social Media)
   { 
-    label: 'InstaFlow', 
-    icon: Instagram,
-    items: instaflowItems,
-    badge: 'IG',
+    label: 'Social Flow', 
+    icon: Megaphone,
+    items: socialFlowItems,
+    badge: null,
     highlight: true
   },
   
