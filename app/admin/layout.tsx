@@ -41,7 +41,8 @@ import {
   Instagram,
   Calendar,
   ImageIcon,
-  Target
+  Target,
+  Layers
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { WhatsAppNotificationProvider } from '@/components/WhatsAppNotificationProvider'
@@ -325,11 +326,24 @@ const menuItems = [
     highlight: true
   },
 
-  // 🎯 COCKPIT DE CAMPANHAS (Novo dashboard profissional)
+  // 🎯 COCKPIT DE CAMPANHAS (Contém: Campanhas + Consolidado)
   { 
-    icon: Target, 
     label: 'Cockpit', 
-    href: '/admin/cockpit',
+    icon: Target,
+    items: [
+      { 
+        icon: Target, 
+        label: 'Campanhas', 
+        href: '/admin/cockpit',
+        badge: null
+      },
+      { 
+        icon: Layers, 
+        label: 'Consolidado', 
+        href: '/admin/cockpit/consolidado',
+        badge: 'NOVO'
+      },
+    ],
     badge: 'PRO',
     highlight: true
   },

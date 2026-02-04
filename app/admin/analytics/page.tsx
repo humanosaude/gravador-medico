@@ -11,8 +11,10 @@ import {
   Activity, Users, Eye, MousePointerClick, Globe,
   FileText, Share2, RefreshCw, TrendingUp, ArrowDownRight, 
   BarChart3, Zap, Timer, MapPin, Smartphone, Monitor, Tablet, Chrome,
+  Brain, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AIInsightPanel } from '@/components/ai/AIInsightPanel';
 
 interface TrafficData { date: string; usuarios: number; visualizacoes: number; }
 interface RealtimeData { activeUsers: number; pages: { page: string; users: number }[]; }
@@ -101,6 +103,49 @@ export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
+  
+  // Estados da IA
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Função para buscar análise da IA
+  const fetchAIAnalysis = useCallback(async (analyticsData: {
+    kpis: KPIData;
+    traffic: TrafficData[];
+    sources: TrafficSource[];
+    topPages: TopPage[];
+    devices: DeviceData[];
+    countries: Country[];
+    cities: CityData[];
+    realtime: RealtimeData | null;
+  }) => {
+    setAiLoading(true);
+    setAiError(null);
+    
+    try {
+      const periodLabel = periodOptions.find(p => p.value === selectedPeriod)?.label || '7 dias';
+      
+      const response = await fetch('/api/ai/analytics-insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: analyticsData,
+          period: periodLabel
+        })
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar análise');
+      
+      const data = await response.json();
+      setAiAnalysis(data);
+    } catch (error) {
+      console.error('Erro na análise IA:', error);
+      setAiError('Não foi possível gerar análise. Tente novamente.');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [selectedPeriod]);
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -137,6 +182,20 @@ export default function AnalyticsPage() {
       setDevices(Array.isArray(devicesData) ? devicesData : []);
       setBrowsers(Array.isArray(browsersData) ? browsersData : []);
       setLastUpdate(new Date());
+      
+      // Buscar análise da IA após carregar todos os dados
+      if (kpisData && kpisData.totalUsers > 0) {
+        fetchAIAnalysis({
+          kpis: kpisData,
+          traffic: Array.isArray(trafficData) ? trafficData : [],
+          sources: Array.isArray(sourcesData) ? sourcesData : [],
+          topPages: Array.isArray(pagesData) ? pagesData : [],
+          devices: Array.isArray(devicesData) ? devicesData : [],
+          countries: Array.isArray(countriesData) ? countriesData : [],
+          cities: Array.isArray(citiesData) ? citiesData : [],
+          realtime: realtimeData
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar analytics:', error);
     } finally {
@@ -221,6 +280,33 @@ export default function AnalyticsPage() {
             </motion.button>
           </div>
         </motion.div>
+
+        {/* Painel de Análise IA */}
+        <AIInsightPanel
+          type="analytics"
+          loading={aiLoading}
+          error={aiError || undefined}
+          summary={aiAnalysis?.summary}
+          healthScore={aiAnalysis?.healthScore}
+          insights={aiAnalysis?.insights}
+          recommendations={aiAnalysis?.recommendations}
+          trends={aiAnalysis?.trends}
+          generatedAt={aiAnalysis?.generatedAt}
+          onRefresh={() => {
+            if (kpis) {
+              fetchAIAnalysis({
+                kpis,
+                traffic,
+                sources,
+                topPages,
+                devices,
+                countries,
+                cities,
+                realtime
+              });
+            }
+          }}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <GlassCard className="lg:col-span-1" gradient>

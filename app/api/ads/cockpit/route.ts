@@ -107,6 +107,78 @@ interface CockpitResponse {
   };
 }
 
+// Interface para retorno de vendas do banco
+interface DatabaseSales {
+  totalRevenue: number;
+  totalSales: number;
+  attributedRevenue: number;
+  attributedSales: number;
+}
+
+// =====================================================
+// BUSCAR VENDAS DO SUPABASE (FALLBACK PARA ROAS)
+// =====================================================
+
+async function getDatabaseSales(since: string, until: string): Promise<DatabaseSales> {
+  try {
+    console.log('🔍 [Cockpit] Buscando vendas do Supabase para ROAS fallback...');
+    
+    // Buscar vendas aprovadas do período
+    // Status que indicam venda PAGA: paid, approved, authorized, active
+    const { data: allSales, error } = await supabaseAdmin
+      .from('sales')
+      .select('id, total_amount, utm_source, utm_medium, utm_campaign, created_at, order_status')
+      .gte('created_at', `${since}T00:00:00`)
+      .lte('created_at', `${until}T23:59:59.999`)
+      .in('order_status', ['paid', 'approved', 'authorized', 'active']);
+    
+    if (error) {
+      console.error('❌ [Cockpit] Erro ao buscar vendas:', error);
+      return { totalRevenue: 0, totalSales: 0, attributedRevenue: 0, attributedSales: 0 };
+    }
+    
+    const sales = allSales || [];
+    
+    if (sales.length === 0) {
+      console.log('⚠️ [Cockpit] Nenhuma venda encontrada no período');
+      return { totalRevenue: 0, totalSales: 0, attributedRevenue: 0, attributedSales: 0 };
+    }
+    
+    // Calcular totais
+    const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
+    const totalSales = sales.length;
+    
+    // Filtrar vendas atribuídas a anúncios (tem UTM de Facebook/Instagram/Meta)
+    const attributedSalesList = sales.filter(s => 
+      s.utm_source && (
+        s.utm_source.toLowerCase().includes('facebook') ||
+        s.utm_source.toLowerCase().includes('instagram') ||
+        s.utm_source.toLowerCase().includes('fb') ||
+        s.utm_source.toLowerCase().includes('ig') ||
+        s.utm_source.toLowerCase().includes('meta')
+      )
+    );
+    
+    const attributedRevenue = attributedSalesList.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
+    const attributedSales = attributedSalesList.length;
+    
+    console.log('💰 [Cockpit] Vendas do Supabase:', {
+      since,
+      until,
+      totalSales,
+      totalRevenue: totalRevenue.toFixed(2),
+      attributedSales,
+      attributedRevenue: attributedRevenue.toFixed(2)
+    });
+    
+    return { totalRevenue, totalSales, attributedRevenue, attributedSales };
+    
+  } catch (error) {
+    console.error('❌ [Cockpit] Erro ao buscar vendas do banco:', error);
+    return { totalRevenue: 0, totalSales: 0, attributedRevenue: 0, attributedSales: 0 };
+  }
+}
+
 // =====================================================
 // DADOS DEMO (quando não há credenciais)
 // =====================================================
@@ -354,6 +426,7 @@ async function getMetaCredentials(): Promise<MetaCredentials | null> {
       .single();
 
     if (data?.meta_ad_account_id && data?.meta_access_token) {
+      console.log('✅ [Cockpit] Credenciais do Supabase');
       return {
         adAccountId: data.meta_ad_account_id,
         accessToken: data.meta_access_token
@@ -363,13 +436,16 @@ async function getMetaCredentials(): Promise<MetaCredentials | null> {
     // Fallback para env vars
   }
 
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
-  const accessToken = process.env.META_ACCESS_TOKEN;
+  // Tentar múltiplas variantes de variáveis de ambiente
+  const adAccountId = process.env.META_AD_ACCOUNT_ID || process.env.FACEBOOK_AD_ACCOUNT_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN || process.env.FACEBOOK_ACCESS_TOKEN;
 
   if (adAccountId && accessToken) {
+    console.log('✅ [Cockpit] Credenciais do ENV');
     return { adAccountId, accessToken };
   }
 
+  console.log('❌ [Cockpit] Nenhuma credencial encontrada');
   return null;
 }
 
@@ -670,11 +746,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(generateDemoData(since, until));
     }
     
-    // Buscar dados em paralelo
-    const [campaignData, adsetData, adData] = await Promise.all([
+    // Buscar dados em paralelo (Meta + Supabase para fallback)
+    const [campaignData, adsetData, adData, dbSales] = await Promise.all([
       fetchInsights(credentials, 'campaign', since, until),
       fetchInsights(credentials, 'adset', since, until),
-      fetchInsights(credentials, 'ad', since, until)
+      fetchInsights(credentials, 'ad', since, until),
+      getDatabaseSales(since, until)
     ]);
     
     // Processar dados
@@ -694,8 +771,47 @@ export async function GET(request: NextRequest) {
       fundo: campaigns.filter(c => c.funnel_stage === 'fundo')
     };
     
-    // Calcular sumário
+    // Calcular sumário base
     const summary = calculateSummary(campaigns);
+    
+    // =====================================================
+    // FALLBACK: USAR VENDAS DO SUPABASE SE META NÃO RETORNAR
+    // =====================================================
+    const metaRevenue = summary.total_revenue;
+    let finalRevenue = metaRevenue;
+    let revenueSource = 'meta';
+    
+    if (metaRevenue <= 0) {
+      // Meta não retornou purchase_value, usar fallback do Supabase
+      if (dbSales.attributedRevenue > 0) {
+        // Priorizar vendas atribuídas ao Meta (UTM facebook/instagram)
+        finalRevenue = dbSales.attributedRevenue;
+        revenueSource = 'supabase_attributed';
+        console.log('🔄 [Cockpit] Usando receita ATRIBUÍDA do Supabase:', finalRevenue.toFixed(2));
+      } else if (dbSales.totalRevenue > 0) {
+        // Fallback para total de vendas
+        finalRevenue = dbSales.totalRevenue;
+        revenueSource = 'supabase_total';
+        console.log('🔄 [Cockpit] Usando receita TOTAL do Supabase:', finalRevenue.toFixed(2));
+      }
+      
+      // Recalcular métricas com a nova receita
+      if (finalRevenue > 0) {
+        summary.total_revenue = finalRevenue;
+        summary.overall_roas = summary.total_spend > 0 ? finalRevenue / summary.total_spend : 0;
+        summary.overall_profit = finalRevenue - summary.total_spend;
+        summary.avg_ticket = summary.total_purchases > 0 ? finalRevenue / summary.total_purchases : 0;
+        
+        // Se não temos compras da Meta mas temos do Supabase
+        if (summary.total_purchases === 0 && dbSales.attributedSales > 0) {
+          summary.total_purchases = dbSales.attributedSales;
+          summary.avg_ticket = finalRevenue / dbSales.attributedSales;
+        } else if (summary.total_purchases === 0 && dbSales.totalSales > 0) {
+          summary.total_purchases = dbSales.totalSales;
+          summary.avg_ticket = finalRevenue / dbSales.totalSales;
+        }
+      }
+    }
     
     const response: CockpitResponse = {
       success: true,
@@ -707,13 +823,15 @@ export async function GET(request: NextRequest) {
       funnel_analysis
     };
     
-    console.log('🎯 [Cockpit] Resultado:', {
+    console.log('🎯 [Cockpit] Resultado FINAL:', {
       campaigns: campaigns.length,
       adsets: adsets.length,
       ads: ads.length,
-      total_spend: summary.total_spend,
-      total_revenue: summary.total_revenue,
-      roas: summary.overall_roas.toFixed(2)
+      total_spend: summary.total_spend.toFixed(2),
+      total_revenue: summary.total_revenue.toFixed(2),
+      revenue_source: revenueSource,
+      roas: summary.overall_roas.toFixed(2),
+      profit: summary.overall_profit.toFixed(2)
     });
     
     return NextResponse.json(response);

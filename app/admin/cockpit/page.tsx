@@ -15,8 +15,9 @@ import {
   Target, TrendingUp, DollarSign, Users, MousePointer, Eye, 
   ShoppingCart, CreditCard, ArrowRight, ChevronDown, ChevronRight,
   RefreshCw, Download, Filter, BarChart3, PieChart, Layers,
-  AlertCircle, CheckCircle, Clock, Zap, Brain
+  AlertCircle, CheckCircle, Clock, Zap, Brain, Sparkles
 } from 'lucide-react';
+import { AIInsightPanel } from '@/components/ai/AIInsightPanel';
 
 // =====================================================
 // TIPOS
@@ -595,6 +596,35 @@ export default function CockpitPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('7');
+  
+  // Estados da IA
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Função para buscar análise da IA
+  const fetchAIAnalysis = useCallback(async (cockpitData: CockpitData) => {
+    setAiLoading(true);
+    setAiError(null);
+    
+    try {
+      const response = await fetch('/api/ai/cockpit-insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: cockpitData })
+      });
+      
+      if (!response.ok) throw new Error('Erro ao buscar análise');
+      
+      const result = await response.json();
+      setAiAnalysis(result);
+    } catch (error) {
+      console.error('Erro na análise IA:', error);
+      setAiError('Não foi possível gerar análise. Tente novamente.');
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -609,6 +639,11 @@ export default function CockpitPage() {
       }
       
       setData(result);
+      
+      // Buscar análise da IA após carregar dados
+      if (result.summary && result.summary.total_spend > 0) {
+        fetchAIAnalysis(result);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
@@ -685,6 +720,26 @@ export default function CockpitPage() {
             <RefreshCw className="w-5 h-5" />
           </button>
         </div>
+      </div>
+
+      {/* Painel de Análise IA */}
+      <div className="mb-8">
+        <AIInsightPanel
+          type="cockpit"
+          loading={aiLoading}
+          error={aiError || undefined}
+          summary={aiAnalysis?.summary}
+          healthScore={aiAnalysis?.healthScore}
+          accountStatus={aiAnalysis?.accountStatus}
+          actions={aiAnalysis?.immediateActions}
+          executiveSummary={aiAnalysis?.executiveSummary}
+          generatedAt={aiAnalysis?.generatedAt}
+          onRefresh={() => {
+            if (data) {
+              fetchAIAnalysis(data);
+            }
+          }}
+        />
       </div>
       
       {/* KPIs Principais */}
