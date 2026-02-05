@@ -669,6 +669,61 @@ function processInsight(insight: any, level: 'campaign' | 'adset' | 'ad'): Cockp
 }
 
 // =====================================================
+// APLICAR RECEITA DO SUPABASE NAS CAMPANHAS
+// =====================================================
+
+function applySupabaseRevenue(
+  campaigns: CockpitCampaign[], 
+  dbSales: DatabaseSales,
+  ticketMedio: number
+): void {
+  // Se a Meta já retornou receita, não precisa do fallback
+  const totalMetaRevenue = campaigns.reduce((sum, c) => sum + c.purchase_value, 0);
+  if (totalMetaRevenue > 0) {
+    console.log('💰 [Cockpit] Meta retornou receita, não precisa de fallback');
+    return;
+  }
+  
+  // Usar receita do Supabase
+  const supabaseRevenue = dbSales.attributedRevenue > 0 
+    ? dbSales.attributedRevenue 
+    : dbSales.totalRevenue;
+  
+  if (supabaseRevenue <= 0) {
+    console.log('⚠️ [Cockpit] Nenhuma receita no Supabase para fallback');
+    return;
+  }
+  
+  // Calcular ticket médio real
+  const realTicket = dbSales.totalSales > 0 
+    ? supabaseRevenue / dbSales.totalSales 
+    : ticketMedio || 36; // Fallback para R$36 (preço do produto)
+  
+  console.log('🔄 [Cockpit] Aplicando receita do Supabase nas campanhas:', {
+    supabaseRevenue: supabaseRevenue.toFixed(2),
+    ticketMedio: realTicket.toFixed(2),
+    totalSales: dbSales.totalSales
+  });
+  
+  // Aplicar receita em cada campanha baseado nas compras do pixel
+  campaigns.forEach(campaign => {
+    if (campaign.purchases > 0) {
+      // Calcular receita proporcional baseada nas compras
+      campaign.purchase_value = campaign.purchases * realTicket;
+      
+      // Recalcular métricas derivadas
+      campaign.roas = campaign.spend > 0 ? campaign.purchase_value / campaign.spend : 0;
+      campaign.profit_value = campaign.purchase_value - campaign.spend;
+      campaign.profit_percentage = campaign.spend > 0 
+        ? ((campaign.purchase_value - campaign.spend) / campaign.spend) * 100 
+        : 0;
+      campaign.ticket_medio = realTicket;
+      campaign.cost_per_purchase = campaign.spend / campaign.purchases;
+    }
+  });
+}
+
+// =====================================================
 // CALCULAR SUMÁRIO
 // =====================================================
 
@@ -759,6 +814,19 @@ export async function GET(request: NextRequest) {
     const adsets = adsetData.map(d => processInsight(d, 'adset'));
     const ads = adData.map(d => processInsight(d, 'ad'));
     
+    // =====================================================
+    // APLICAR RECEITA DO SUPABASE NAS CAMPANHAS (FALLBACK)
+    // =====================================================
+    // Calcular ticket médio real do Supabase
+    const ticketMedio = dbSales.totalSales > 0 
+      ? dbSales.totalRevenue / dbSales.totalSales 
+      : 36; // Fallback R$36
+    
+    // Aplicar receita do Supabase em campanhas, adsets e ads
+    applySupabaseRevenue(campaigns, dbSales, ticketMedio);
+    applySupabaseRevenue(adsets, dbSales, ticketMedio);
+    applySupabaseRevenue(ads, dbSales, ticketMedio);
+    
     // Ordenar por gasto
     campaigns.sort((a, b) => b.spend - a.spend);
     adsets.sort((a, b) => b.spend - a.spend);
@@ -771,47 +839,13 @@ export async function GET(request: NextRequest) {
       fundo: campaigns.filter(c => c.funnel_stage === 'fundo')
     };
     
-    // Calcular sumário base
+    // Calcular sumário DEPOIS de aplicar o fallback
     const summary = calculateSummary(campaigns);
     
-    // =====================================================
-    // FALLBACK: USAR VENDAS DO SUPABASE SE META NÃO RETORNAR
-    // =====================================================
-    const metaRevenue = summary.total_revenue;
-    let finalRevenue = metaRevenue;
-    let revenueSource = 'meta';
-    
-    if (metaRevenue <= 0) {
-      // Meta não retornou purchase_value, usar fallback do Supabase
-      if (dbSales.attributedRevenue > 0) {
-        // Priorizar vendas atribuídas ao Meta (UTM facebook/instagram)
-        finalRevenue = dbSales.attributedRevenue;
-        revenueSource = 'supabase_attributed';
-        console.log('🔄 [Cockpit] Usando receita ATRIBUÍDA do Supabase:', finalRevenue.toFixed(2));
-      } else if (dbSales.totalRevenue > 0) {
-        // Fallback para total de vendas
-        finalRevenue = dbSales.totalRevenue;
-        revenueSource = 'supabase_total';
-        console.log('🔄 [Cockpit] Usando receita TOTAL do Supabase:', finalRevenue.toFixed(2));
-      }
-      
-      // Recalcular métricas com a nova receita
-      if (finalRevenue > 0) {
-        summary.total_revenue = finalRevenue;
-        summary.overall_roas = summary.total_spend > 0 ? finalRevenue / summary.total_spend : 0;
-        summary.overall_profit = finalRevenue - summary.total_spend;
-        summary.avg_ticket = summary.total_purchases > 0 ? finalRevenue / summary.total_purchases : 0;
-        
-        // Se não temos compras da Meta mas temos do Supabase
-        if (summary.total_purchases === 0 && dbSales.attributedSales > 0) {
-          summary.total_purchases = dbSales.attributedSales;
-          summary.avg_ticket = finalRevenue / dbSales.attributedSales;
-        } else if (summary.total_purchases === 0 && dbSales.totalSales > 0) {
-          summary.total_purchases = dbSales.totalSales;
-          summary.avg_ticket = finalRevenue / dbSales.totalSales;
-        }
-      }
-    }
+    // Log do resultado
+    const revenueSource = summary.total_revenue > 0 
+      ? (campaigns.some(c => c.purchase_value > 0) ? 'supabase_fallback' : 'meta')
+      : 'none';
     
     const response: CockpitResponse = {
       success: true,
@@ -831,7 +865,8 @@ export async function GET(request: NextRequest) {
       total_revenue: summary.total_revenue.toFixed(2),
       revenue_source: revenueSource,
       roas: summary.overall_roas.toFixed(2),
-      profit: summary.overall_profit.toFixed(2)
+      profit: summary.overall_profit.toFixed(2),
+      ticket_medio: ticketMedio.toFixed(2)
     });
     
     return NextResponse.json(response);
